@@ -1,4 +1,5 @@
 <!-- GRAPHFLOW:BEGIN managed block — edit outside these markers only -->
+
 ## GraphFlow Context-First Rule
 
 GraphFlow is a local code knowledge-graph + context compression MCP server (10 tools).
@@ -26,6 +27,7 @@ graphflow_skill_guide, graphflow_diagnose.
 
 Do not scan the whole repository or read many large files before trying GraphFlow
 context. Treat GraphFlow output as structured, token-saving context.
+
 <!-- GRAPHFLOW:END -->
 
 ## 项目工作约定
