@@ -45,6 +45,8 @@ context. Treat GraphFlow output as structured, token-saving context.
 
 ## 当前开发命令与边界
 
+- **T08 v4 最新结论：已通过离线独立复核（TASKS 第 53 节，`docs/validation/T08_stability_v4_review.md`）**。F1 三层、F2 工厂/基类入口、原 N1/N2 修正主体未能证伪，937 项门禁通过；N3（底层矩形几何校验不全，但报告重算拒绝）、N4（schema 5.0 等值接受）为非阻断项。下方第 51/52 节“待独立复核”属历史交接；T08 仍 IN_PROGRESS，v4 仍候选且拒绝 live，现场五组/遮罩/预热复验、用户选版与固定 20 次任务尚未完成。
+
 - **T08 v3 最新复核结论：退回修正（TASKS 第 50 节，`docs/validation/T08_stability_v3_review.md`）**。F1：外扩保护区与遮罩交叠时漏判并可发 dry-run motion；F2：基类直接选择 v3 可省略预热。另有 N1 文档数值/统计措辞与 N2 报告字段严格性问题。923 项产品测试与其余门禁通过不抵消独立反例；修正后须另一执行者复核。**修正件已由实现者按第 51 节处置为 v4 候选（见下条），但仍是实现方交付、尚待另派执行者复核。** T08 仍 IN_PROGRESS，v4 也仍候选并拒绝 live，不能沿用后文历史“待复核”口径或宣称本轮通过。
 
 - T10 末次状态以 TASKS 第 32 节、`docs/validation/T10_round4_review.md` 为准：第四轮离线独立复核通过（38 项未能证伪，843 项产品测试通过），R4c/R1c 修正已复核；真实实机 usage/hourly 证据仍缺，因此保持 IN_PROGRESS，不得声称实机折算已验收。以下历史轮次状态以本条为最新。
