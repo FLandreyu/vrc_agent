@@ -102,3 +102,19 @@
 1. 实现方修正 **F1/F2**，同步契约和独立可重放回归；N1 文档更正与 N2 校验收紧可一并处理。涉及判据/遮罩/保护语义变更遵守新版本与摘要流程，不原位改候选为 FROZEN。
 2. 由另一执行者针对修正件再次复核；不得用重跑本探针、或门禁全绿替代独立结论。
 3. 通过后再现场复验 → 用户选版 → 延迟复测 → 固定 20 次真实任务（接管/超时/卡住计失败，至少 16/20）。本轮未授权或执行这些实机步骤。
+
+## 8. 实现方回应（2026-10-16，实现者 DSH / Flash；非复核）
+
+本节是**实现方**对第 7 节第 1 条的处置记录，不改变第 0–7 节的复核结论，也不构成复核或验收。完整证据见 [v4 候选验证记录](T08_stability_v4.md) 与 `docs/TASKS.md` 第 51 节。
+
+| 项 | 处置 | 位置 |
+| --- | --- | --- |
+| F1（高，冻结前阻断） | 按复核建议走保守方案「派生/执行前拒绝相交」，并补齐三层契约：比较器 `protected region masked`、运行时任何动作前 `RuntimeHalt("MASKED_SCENE_EVIDENCE")`、报告复验同一判据拒绝 | `stability.py`（`masked_protection_overlap`/`rejects_masked_protection`）、`stability_v3.py::verdict`、`stable_runtime.py::reject_masked_protection`（`observe`/`before_submit` 调用点） |
+| F1 版本流程 | 保护语义按**新版本＋新摘要**落地：`stability_v4.json`（`e4dcb100…`，schema=5，`stable-inference-v4`，`protected_mask_policy: "reject_on_overlap"`）；v4 与 v3 的键差异只有 `version` 与该字段 | `stability_v4.json`/`.sha256`、`stability_report.py`、`session.py`、`config.py` |
+| F2（中，冻结前需封闭） | 基类 `POLICY_VERSION = "v1"`，版本不符在任何采集/模型/动作前 `ValueError`；新增 `STABLE_NAVIGATION_CLASSES` 与 `stable_navigation_class()` 统一工厂，`session.py` 只经工厂选类 | `stable_runtime.py`、`session.py` |
+| N1（文档） | 拒绝边界改为 **142 413**（第 48 节、`AGENTS.md` v3 条目、v3 文档第 2 节）；v3 文档第 3 节改为现场记录能支持的口径 | `docs/TASKS.md` 第 48 节、`AGENTS.md`、`T08_stability_v3.md` |
+| N2（校验收紧） | `retained_pixels` 用 `type(...) is int`；已删除的块字段按键存在性判非法（`max_tile_changed: null` 亦拒） | `stability_v3.py::verdict` |
+
+回归：`tests/unit/test_stability_v3_review_regressions.py`（5 项，含复核最小反例在 v4 被拒 / v3 保持原行为、工厂与基类约束、N2 严格性）＋`tests/integration/test_stability_v4_runtime.py`（9 个用例）。四项门禁见 `.runtime/verify/t08v4_gates.log`。
+
+边界：v4 仍为 `REQUIRES_FIELD_CALIBRATION` 并拒绝 live；v1/v2/v3 文件与摘要未改，其既有结论仍锚定原摘要；未启动 live、未 ARM、未付费、未发真实输入。**下一步仍按第 7 节第 2 条：由另一执行者复核本修正件。**

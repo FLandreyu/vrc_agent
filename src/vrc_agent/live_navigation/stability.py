@@ -12,7 +12,7 @@ from vrc_agent.capture.frames import Frame
 
 
 def load_policy(version="v1"):
-    if version not in {"v1", "v2", "v3"}:
+    if version not in {"v1", "v2", "v3", "v4"}:
         raise ValueError("unknown stability policy version")
     root = files("vrc_agent.live_navigation")
     raw = root.joinpath(f"stability_{version}.json").read_bytes()
@@ -76,4 +76,22 @@ def intersects_mask(entity, policy):
     return any(
         x1 * w < right and x2 * w > left and y1 * h < bottom and y2 * h > top
         for left, top, right, bottom in policy["excluded_rectangles"]
+    )
+
+
+def rejects_masked_protection(policy):
+    """策略是否声明「外扩保护矩形不得与遮罩相交」（v4 起，见复核记录 F1）。"""
+    return policy.get("protected_mask_policy") == "reject_on_overlap"
+
+
+def masked_protection_overlap(rectangles, policy):
+    """像素坐标下的保护矩形是否与排除矩形相交；相交时遮罩会把保护区内变化清零。
+
+    该集合比较不依赖实体，只由策略 `excluded_rectangles` 与调用方传入的
+    `protected_rectangles` 决定，因此比较器、运行时与报告复验共用同一判据。
+    """
+    return any(
+        left < mask_right and right > mask_left and top < mask_bottom and bottom > mask_top
+        for left, top, right, bottom in rectangles
+        for mask_left, mask_top, mask_right, mask_bottom in policy["excluded_rectangles"]
     )

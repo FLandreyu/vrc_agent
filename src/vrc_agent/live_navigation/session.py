@@ -25,7 +25,7 @@ from .runtime import SupervisedNavigation
 from .skill import CalibratedSkill, calibrated_prompt
 from .stability import load_policy
 from .stability_report import validate_stability_report
-from .stable_runtime import StableNavigation, StableNavigationV2, StableNavigationV3
+from .stable_runtime import stable_navigation_class
 from .world import load_live_world
 
 
@@ -70,6 +70,7 @@ async def navigation_entry(args):
         "stable-inference-v1": "v1",
         "stable-inference-v2": "v2",
         "stable-inference-v3": "v3",
+        "stable-inference-v4": "v4",
     }.get(config.navigation_design, "v1")
     if stable and load_policy(policy_version)[0]["status"] != "FROZEN":
         raise ValueError(
@@ -102,11 +103,7 @@ async def navigation_entry(args):
             file=sys.stderr,
             flush=True,
         )
-        runtime_class = StableNavigation if stable else SupervisedNavigation
-        if config.navigation_design == "stable-inference-v2":
-            runtime_class = StableNavigationV2
-        elif config.navigation_design == "stable-inference-v3":
-            runtime_class = StableNavigationV3
+        runtime_class = stable_navigation_class(policy_version) if stable else SupervisedNavigation
         runtime = runtime_class(
             client,
             lambda authority: live_capture(

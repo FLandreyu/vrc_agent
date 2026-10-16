@@ -7,8 +7,8 @@ from vrc_agent.contracts import Entity
 from .stability import load_policy
 from .stability_v2 import protected_rectangles
 
-SCHEMAS = {"v1": 2, "v2": 3, "v3": 4}
-WARMUP_VERSIONS = {"v2", "v3"}
+SCHEMAS = {"v1": 2, "v2": 3, "v3": 4, "v4": 5}
+WARMUP_VERSIONS = {"v2", "v3", "v4"}
 
 
 def policy_verdict(metrics, policy):
@@ -116,6 +116,7 @@ def validate_stability_report(report):
         "stable-inference-v1": "v1",
         "stable-inference-v2": "v2",
         "stable-inference-v3": "v3",
+        "stable-inference-v4": "v4",
     }.get(declared)
     if version is None or report.get("schema_version") != SCHEMAS[version]:
         raise ValueError("unknown navigation design")

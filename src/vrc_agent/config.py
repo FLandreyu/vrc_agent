@@ -205,7 +205,11 @@ class DialogueConfig(Contract):
 class AppConfig(Contract):
     # 显式选用新策略；默认保持既有 live 时效策略。候选版须现场重新确认 HUD 区域。
     navigation_design: Literal[
-        "legacy", "stable-inference-v1", "stable-inference-v2", "stable-inference-v3"
+        "legacy",
+        "stable-inference-v1",
+        "stable-inference-v2",
+        "stable-inference-v3",
+        "stable-inference-v4",
     ] = "legacy"
     mode: Literal["dry-run", "live"] = "dry-run"
     #: 动作提议的来源（T01 的固定示例）；与 [perception].provider 是不同的东西。

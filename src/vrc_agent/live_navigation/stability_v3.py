@@ -13,11 +13,16 @@
   像素都没有（安全相关的局部保护不变）。
 
 比较器复用 v2 已审计的整数通道槽实现，不重复实现位运算；本模块不引入新依赖。
+
+v4 沿用同一指标形态，并在策略里声明 `protected_mask_policy: reject_on_overlap`：
+外扩保护矩形与遮罩相交时，遮罩会把交集里的变化清零，此时本模块拒绝（
+`protected region masked`）而不是放行；运行时另在派生/执行前中止
+`MASKED_SCENE_EVIDENCE`。未声明该字段的 v1–v3 保持既有已复核行为不变。
 """
 
 import hashlib
 
-from .stability import masked_rgb
+from .stability import masked_protection_overlap, masked_rgb, rejects_masked_protection
 from .stability_v2 import changed_flags, protected_rectangles
 
 
@@ -28,16 +33,29 @@ def verdict(metrics, policy):
         (right - left) * (bottom - top)
         for left, top, right, bottom in policy["excluded_rectangles"]
     )
-    if metrics.get("retained_pixels") != retained:
+    if type(metrics.get("retained_pixels")) is not int or metrics["retained_pixels"] != retained:
         raise ValueError("invalid retained pixel count")
     changed = metrics.get("changed_pixels")
     if type(changed) is not int or not 0 <= changed <= retained:
         raise ValueError("invalid changed pixel count")
     if type(metrics.get("black")) is not bool:
         raise ValueError("invalid black verdict")
-    # v3 没有逐块判据；带块计数的证据与策略不符，按拒绝处理。
-    if metrics.get("max_tile_changed") is not None:
+    # v3 没有逐块判据；证据里出现块计数键即与策略不符，按拒绝处理。
+    if "max_tile_changed" in metrics:
         raise ValueError("unexpected tile comparison details")
+    # v4 声明外扩保护矩形不得与遮罩相交；相交时遮罩会把保护区内变化清零，
+    # 这时不能宣称「保护区零变化」，必须拒绝而不是当成通过（复核记录 F1）。
+    if rejects_masked_protection(policy):
+        rectangles = metrics.get("protected_rectangles")
+        if not isinstance(rectangles, list) or any(
+            not isinstance(rect, list)
+            or len(rect) != 4
+            or any(type(value) is not int for value in rect)
+            for rect in rectangles
+        ):
+            raise ValueError("invalid protected evidence regions")
+        if masked_protection_overlap(rectangles, policy):
+            raise ValueError("protected region masked")
     if changed * 1_000_000 > retained * policy["max_changed_ppm"]:
         if metrics.get("protected_changed") is not None:
             raise ValueError("unexpected partial comparison details")

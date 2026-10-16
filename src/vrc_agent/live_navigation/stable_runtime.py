@@ -10,13 +10,27 @@ from vrc_agent.runtime import RuntimeHalt
 
 from .runtime import SupervisedNavigation
 from .skill import calibrated_prompt
-from .stability import compare, intersects_mask, load_policy
+from .stability import (
+    compare,
+    intersects_mask,
+    load_policy,
+    masked_protection_overlap,
+    rejects_masked_protection,
+)
+from .stability_v2 import protected_rectangles
 
 
 class StableNavigation(SupervisedNavigation):
-    def __init__(self, *args, policy_version="v1", **kwargs):
+    POLICY_VERSION = "v1"
+
+    def __init__(self, *args, policy_version=None, **kwargs):
+        # 版本只能由实现类决定：直接给基类传 v2/v3/v4 会在任何采集/模型/动作前拒绝，
+        # 防止调用方选到新判据却省掉对应预热（复核记录 F2）。
+        if policy_version is not None and policy_version != self.POLICY_VERSION:
+            raise ValueError("stability policy version must match the navigation class")
         # 父类仍保留 1000ms 构造约束，旧装配不改变；新预算仅取冻结策略。
         super().__init__(*args, **kwargs)
+        policy_version = self.POLICY_VERSION
         self.policy_version = policy_version
         self.policy, self.policy_digest = load_policy(policy_version)
         if self.client.config.mode == "live" and self.policy["status"] != "FROZEN":
@@ -101,6 +115,17 @@ class StableNavigation(SupervisedNavigation):
         )
         return current, scene
 
+    def reject_masked_protection(self, entities):
+        """v4 声明：外扩保护矩形与遮罩相交时，在比较/派生/执行前中止。
+
+        相交处被遮罩清零，比较器无法证明保护区零变化；此时必须拒绝，不能靠
+        事后报告审计（复核记录 F1）。
+        """
+        if rejects_masked_protection(self.policy) and masked_protection_overlap(
+            protected_rectangles(entities, self.policy), self.policy
+        ):
+            raise RuntimeHalt("MASKED_SCENE_EVIDENCE")
+
     async def observe(self, after_ns=None):
         for _ in range(self.policy["max_inference_attempts"]):
             observation, frame, _ = await self.reference_capture(after_ns)
@@ -142,6 +167,8 @@ class StableNavigation(SupervisedNavigation):
                 generated_at_ns=self.clock.now_ns(),
                 max_entities=64,
             ).scene
+            evidence = self.evidence_entities(source_scene)
+            self.reject_masked_protection(evidence)
             self.event(
                 "inference_source",
                 observation_id=observation.observation_id,
@@ -159,7 +186,7 @@ class StableNavigation(SupervisedNavigation):
                 ],
             )
             current, current_frame, proof = await self.fresh_proof(
-                observation, frame, entities=self.evidence_entities(source_scene)
+                observation, frame, entities=evidence
             )
             if self.accepted(proof):
                 self.reference = (observation, frame, source_scene)
@@ -170,9 +197,9 @@ class StableNavigation(SupervisedNavigation):
     async def before_submit(self, observation, scene):
         for _ in range(self.policy["max_inference_attempts"]):
             source, frame, original = self.reference
-            _, _, proof = await self.fresh_proof(
-                source, frame, entities=self.evidence_entities(original)
-            )
+            evidence = self.evidence_entities(original)
+            self.reject_masked_protection(evidence)
+            _, _, proof = await self.fresh_proof(source, frame, entities=evidence)
             max_age = min(1500, self.client.config.control.observation_max_age_ms) * 1_000_000
             if (
                 self.accepted(proof)
@@ -188,7 +215,7 @@ class StableNavigation(SupervisedNavigation):
     async def run(self):
         report = await super().run()
         report["navigation_design"] = "stable-inference-" + self.policy_version
-        report["schema_version"] = {"v1": 2, "v2": 3, "v3": 4}[self.policy_version]
+        report["schema_version"] = {"v1": 2, "v2": 3, "v3": 4, "v4": 5}[self.policy_version]
         report["stability_policy"] = {"digest": self.policy_digest, **self.policy}
         report["stability_proofs"] = self.proofs
         return report
@@ -200,7 +227,7 @@ class StableNavigationV2(StableNavigation):
     POLICY_VERSION = "v2"
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, policy_version=self.POLICY_VERSION, **kwargs)
+        super().__init__(*args, **kwargs)
         self.warmup_checks = []
         self.warmup_references = {}
 
@@ -260,3 +287,32 @@ class StableNavigationV3(StableNavigationV2):
     """
 
     POLICY_VERSION = "v3"
+
+
+class StableNavigationV4(StableNavigationV3):
+    """v4 与 v3 判据相同，只多一条已声明的保护语义：保护矩形不得与遮罩相交。
+
+    v3 独立复核发现外扩保护区与遮罩交叠时，交集里的变化被遮罩清零、仍可宣称
+    「保护区零变化」（F1）。按「判据/保护语义变更走新版本与摘要」的流程，不改
+    v3 本身，而是发布 v4：策略显式声明 `protected_mask_policy=reject_on_overlap`，
+    运行时在比较/派生前中止 `MASKED_SCENE_EVIDENCE`，报告复验同样拒绝。
+    v1/v2/v3 未声明该字段，保持既有已复核行为不变。
+    """
+
+    POLICY_VERSION = "v4"
+
+
+STABLE_NAVIGATION_CLASSES = {
+    "v1": StableNavigation,
+    "v2": StableNavigationV2,
+    "v3": StableNavigationV3,
+    "v4": StableNavigationV4,
+}
+
+
+def stable_navigation_class(policy_version):
+    """按策略版本装配运行时；版本选择集中在此，避免调用方选到判据却漏掉预热。"""
+    try:
+        return STABLE_NAVIGATION_CLASSES[policy_version]
+    except KeyError:
+        raise ValueError("unknown stability policy version") from None
