@@ -5,6 +5,90 @@ import re
 from vrc_agent.contracts import Entity
 
 from .stability import load_policy
+from .stability_v2 import protected_rectangles, verdict
+
+
+def validate_proof(proof, policy, digest, session_id, version):
+    if proof.get("session_id") != session_id or type(proof.get("environment_epoch")) is not int:
+        raise ValueError("stability authority mismatch")
+    if proof.get("policy_digest") != digest:
+        raise ValueError("stability proof policy mismatch")
+    for key in ("reference_digest", "current_digest", "reference_rgb_digest", "current_rgb_digest"):
+        if not isinstance(proof.get(key), str) or not re.fullmatch("[0-9a-f]{64}", proof[key]):
+            raise ValueError("invalid stability digest")
+    times = [
+        proof.get(k)
+        for k in ("reference_captured_at_ns", "current_captured_at_ns", "checked_at_ns")
+    ]
+    if any(type(t) is not int or t < 0 for t in times):
+        raise ValueError("invalid stability timestamp")
+    if not times[0] < times[1] <= times[2] < times[1] + policy["freshness_ms"] * 1_000_000:
+        raise ValueError("stale stability proof")
+    key = "equal" if version == "v1" else "stable"
+    if type(proof.get("black")) is not bool or type(proof.get(key)) is not bool:
+        raise ValueError("invalid stability verdict")
+    expected = (
+        (not proof["black"] and proof["reference_rgb_digest"] == proof["current_rgb_digest"])
+        if version == "v1"
+        else verdict(proof, policy)
+    )
+    if proof[key] != expected:
+        raise ValueError("contradictory stability verdict")
+    return expected
+
+
+def validate_warmup(report, sources, policy, digest):
+    checks, references = report.get("warmup_checks"), report.get("warmup_references")
+    if not isinstance(checks, list) or not isinstance(references, dict):
+        raise ValueError("missing warmup evidence")
+    ids = set()
+    for check in checks:
+        validate_proof(check, policy, digest, report["session_id"], "v2")
+        if check.get("protected_rectangles") != [] or "validates_observation_id" in check:
+            raise ValueError("invalid warmup evidence")
+        if check["current_observation_id"] in ids:
+            raise ValueError("repeated warmup observation")
+        ids.add(check["current_observation_id"])
+        if (
+            check["current_captured_at_ns"] - check["reference_captured_at_ns"]
+            < policy["warmup_interval_ms"] * 1_000_000
+        ):
+            raise ValueError("warmup interval too short")
+    if not set(sources) <= set(references):
+        raise ValueError("source missing warmup")
+    for reference_id, indices in references.items():
+        if (
+            not isinstance(indices, list)
+            or len(indices) != policy["warmup_pairs"]
+            or any(type(i) is not int or not 0 <= i < len(checks) for i in indices)
+        ):
+            raise ValueError("invalid warmup indices")
+        if indices != list(range(indices[0], indices[0] + len(indices))):
+            raise ValueError("nonconsecutive warmup")
+        chain = [checks[i] for i in indices]
+        if not all(check["stable"] for check in chain):
+            raise ValueError("unstable warmup source")
+        for previous, current in zip(chain, chain[1:]):
+            for left, right in (
+                ("current_observation_id", "reference_observation_id"),
+                ("current_captured_at_ns", "reference_captured_at_ns"),
+                ("current_digest", "reference_digest"),
+            ):
+                if previous[left] != current[right]:
+                    raise ValueError("broken warmup chain")
+            if previous["environment_epoch"] != current["environment_epoch"]:
+                raise ValueError("warmup epoch mismatch")
+        last = chain[-1]
+        if reference_id != last["current_observation_id"]:
+            raise ValueError("warmup reference mismatch")
+        if reference_id in sources:
+            source = sources[reference_id]
+            if (
+                source["captured_at_ns"] != last["current_captured_at_ns"]
+                or source["frame_digest"] != last["current_digest"]
+                or source["environment_epoch"] != last["environment_epoch"]
+            ):
+                raise ValueError("source warmup mismatch")
 
 
 def validate_stability_report(report):
@@ -13,9 +97,10 @@ def validate_stability_report(report):
         if "stability_policy" in report or "stability_proofs" in report:
             raise ValueError("undeclared stability evidence")
         return
-    if declared != "stable-inference-v1" or report.get("schema_version") != 2:
+    version = {"stable-inference-v1": "v1", "stable-inference-v2": "v2"}.get(declared)
+    if version is None or report.get("schema_version") != (2 if version == "v1" else 3):
         raise ValueError("unknown navigation design")
-    policy, digest = load_policy()
+    policy, digest = load_policy(version)
     if report.get("stability_policy") != {"digest": digest, **policy}:
         raise ValueError("stability policy mismatch")
     proofs = report.get("stability_proofs")
@@ -30,38 +115,12 @@ def validate_stability_report(report):
             if key in mapping:
                 raise ValueError("duplicate stability observation")
             mapping[key] = event
+    if version == "v2":
+        validate_warmup(report, sources, policy, digest)
     accepted, bindings = {}, {}
     for proof in proofs:
-        if (
-            proof.get("session_id") != report.get("session_id")
-            or type(proof.get("environment_epoch")) is not int
-        ):
-            raise ValueError("stability authority mismatch")
-        if proof.get("policy_digest") != digest:
-            raise ValueError("stability proof policy mismatch")
-        for key in (
-            "reference_digest",
-            "current_digest",
-            "reference_rgb_digest",
-            "current_rgb_digest",
-        ):
-            if not isinstance(proof.get(key), str) or not re.fullmatch("[0-9a-f]{64}", proof[key]):
-                raise ValueError("invalid stability digest")
-        times = [
-            proof.get(k)
-            for k in ("reference_captured_at_ns", "current_captured_at_ns", "checked_at_ns")
-        ]
-        if any(type(t) is not int or t < 0 for t in times):
-            raise ValueError("invalid stability timestamp")
-        if not times[0] < times[1] <= times[2] < times[1] + policy["freshness_ms"] * 1_000_000:
-            raise ValueError("stale stability proof")
-        if type(proof.get("black")) is not bool or type(proof.get("equal")) is not bool:
-            raise ValueError("invalid stability verdict")
-        expected = (
-            not proof["black"] and proof["reference_rgb_digest"] == proof["current_rgb_digest"]
-        )
-        if proof["equal"] != expected:
-            raise ValueError("contradictory stability verdict")
+        is_stable = validate_proof(proof, policy, digest, report["session_id"], version)
+        times = [proof["reference_captured_at_ns"], proof["current_captured_at_ns"]]
         source = sources.get(proof["reference_observation_id"])
         if (
             source is None
@@ -82,7 +141,15 @@ def validate_stability_report(report):
                 or entity.last_seen_ns != times[0]
             ):
                 raise ValueError("source entity mismatch")
-        if proof["equal"]:
+        if version == "v2":
+            entities = [
+                Entity.model_validate({**e, "bbox": tuple(e["bbox"])}) for e in source["entities"]
+            ]
+            if proof.get("protected_rectangles") != [
+                list(r) for r in protected_rectangles(entities, policy)
+            ]:
+                raise ValueError("protected evidence regions mismatch")
+        if is_stable:
             accepted[proof["current_observation_id"]] = proof
             if "validates_observation_id" in proof:
                 bindings[proof["validates_observation_id"]] = proof

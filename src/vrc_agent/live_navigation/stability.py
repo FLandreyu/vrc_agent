@@ -11,11 +11,13 @@ from importlib.resources import files
 from vrc_agent.capture.frames import Frame
 
 
-def load_policy():
+def load_policy(version="v1"):
+    if version not in {"v1", "v2"}:
+        raise ValueError("unknown stability policy version")
     root = files("vrc_agent.live_navigation")
-    raw = root.joinpath("stability_v1.json").read_bytes()
+    raw = root.joinpath(f"stability_{version}.json").read_bytes()
     digest = hashlib.sha256(raw).hexdigest()
-    expected = root.joinpath("stability_v1.sha256").read_text(encoding="ascii").strip()
+    expected = root.joinpath(f"stability_{version}.sha256").read_text(encoding="ascii").strip()
     if digest != expected:
         raise ValueError("stability policy digest mismatch")
     return json.loads(raw), digest
@@ -38,7 +40,11 @@ def masked_rgb(frame: Frame, policy: dict) -> bytes:
     return bytes(rgb)
 
 
-def compare(reference: Frame, current: Frame, policy: dict) -> dict:
+def compare(reference: Frame, current: Frame, policy: dict, entities=()) -> dict:
+    if policy["metric"] == "rgb_tolerance_local_guard_v2":
+        from .stability_v2 import compare_v2
+
+        return compare_v2(reference, current, policy, entities)
     a, b = masked_rgb(reference, policy), masked_rgb(current, policy)
 
     # 分块避免 max() 在整幅黑帧上长时间持有 GIL，控制轮询仍能调度。

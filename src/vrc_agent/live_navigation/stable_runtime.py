@@ -14,10 +14,11 @@ from .stability import compare, intersects_mask, load_policy
 
 
 class StableNavigation(SupervisedNavigation):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, policy_version="v1", **kwargs):
         # 父类仍保留 1000ms 构造约束，旧装配不改变；新预算仅取冻结策略。
         super().__init__(*args, **kwargs)
-        self.policy, self.policy_digest = load_policy()
+        self.policy_version = policy_version
+        self.policy, self.policy_digest = load_policy(policy_version)
         if self.client.config.mode == "live" and self.policy["status"] != "FROZEN":
             raise ValueError("candidate stability policy cannot enable live navigation")
         self.inference_ms = self.policy["inference_ms"]
@@ -25,10 +26,23 @@ class StableNavigation(SupervisedNavigation):
         self.reference = None
         self.proofs = []
 
-    async def fresh_proof(self, reference_obs, reference_frame, *, after_ns=None):
+    def accepted(self, proof):
+        return proof["equal" if self.policy_version == "v1" else "stable"]
+
+    def evidence_entities(self, scene):
+        return tuple(
+            e
+            for e in scene.entities
+            if e.label in {self.skill.goal.label, "forward_clearance", "recovery_clearance"}
+        )
+
+    async def reference_capture(self, after_ns):
+        return await self.capture(after_ns)
+
+    async def fresh_proof(self, reference_obs, reference_frame, *, after_ns=None, entities=()):
         current, frame, max_age = await self.capture(after_ns)
         proof = await self.bounded(
-            asyncio.to_thread(compare, reference_frame, frame, self.policy),
+            asyncio.to_thread(compare, reference_frame, frame, self.policy, entities),
             ms=1000,
             reason="STABILITY_TIMEOUT",
         )
@@ -89,7 +103,7 @@ class StableNavigation(SupervisedNavigation):
 
     async def observe(self, after_ns=None):
         for _ in range(self.policy["max_inference_attempts"]):
-            observation, frame, _ = await self.capture(after_ns)
+            observation, frame, _ = await self.reference_capture(after_ns)
             # 编码在 worker 内，主循环继续每 30ms 检查授权；provider 不再同步编码大帧。
             png = await self.bounded(
                 asyncio.to_thread(bgra_png, frame.data, frame.size),
@@ -144,8 +158,10 @@ class StableNavigation(SupervisedNavigation):
                     if e.label in {self.skill.goal.label, "forward_clearance", "recovery_clearance"}
                 ],
             )
-            current, current_frame, proof = await self.fresh_proof(observation, frame)
-            if proof["equal"]:
+            current, current_frame, proof = await self.fresh_proof(
+                observation, frame, entities=self.evidence_entities(source_scene)
+            )
+            if self.accepted(proof):
                 self.reference = (observation, frame, source_scene)
                 return self.derive(source_scene, current, current_frame, proof)
             self.event("stability_rejected")
@@ -153,10 +169,15 @@ class StableNavigation(SupervisedNavigation):
 
     async def before_submit(self, observation, scene):
         for _ in range(self.policy["max_inference_attempts"]):
-            source, frame, _ = self.reference
-            _, _, proof = await self.fresh_proof(source, frame)
+            source, frame, original = self.reference
+            _, _, proof = await self.fresh_proof(
+                source, frame, entities=self.evidence_entities(original)
+            )
             max_age = min(1500, self.client.config.control.observation_max_age_ms) * 1_000_000
-            if proof["equal"] and 0 <= self.clock.now_ns() - observation.captured_at_ns < max_age:
+            if (
+                self.accepted(proof)
+                and 0 <= self.clock.now_ns() - observation.captured_at_ns < max_age
+            ):
                 # 不刷新绑定观测的采集时间；额外帧仅证明这份仍新鲜的证据可以继续使用。
                 proof["validates_observation_id"] = observation.observation_id
                 return observation, scene
@@ -166,8 +187,62 @@ class StableNavigation(SupervisedNavigation):
 
     async def run(self):
         report = await super().run()
-        report["navigation_design"] = "stable-inference-v1"
-        report["schema_version"] = 2
+        report["navigation_design"] = "stable-inference-" + self.policy_version
+        report["schema_version"] = 2 if self.policy_version == "v1" else 3
         report["stability_policy"] = {"digest": self.policy_digest, **self.policy}
         report["stability_proofs"] = self.proofs
+        return report
+
+
+class StableNavigationV2(StableNavigation):
+    """v2 每次推理前都丢弃预热帧；不跨动作复用参考，不链式滚动推理参考。"""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, policy_version="v2", **kwargs)
+        self.warmup_checks = []
+        self.warmup_references = {}
+
+    async def reference_capture(self, after_ns):
+        previous, previous_frame, _ = await self.capture(after_ns)
+        consecutive = []
+        for _ in range(self.policy["warmup_max_frames"] - 1):
+            await self.bounded(
+                asyncio.sleep(self.policy["warmup_interval_ms"] / 1000),
+                ms=1000,
+                reason="STABILITY_TIMEOUT",
+            )
+            current, frame, max_age = await self.capture(after_ns)
+            proof = await self.bounded(
+                asyncio.to_thread(compare, previous_frame, frame, self.policy),
+                ms=1000,
+                reason="STABILITY_TIMEOUT",
+            )
+            now = self.clock.now_ns()
+            if not 0 <= now - current.captured_at_ns < max_age:
+                raise RuntimeHalt("STALE_OBSERVATION")
+            proof.update(
+                reference_observation_id=previous.observation_id,
+                current_observation_id=current.observation_id,
+                reference_captured_at_ns=previous.captured_at_ns,
+                current_captured_at_ns=current.captured_at_ns,
+                checked_at_ns=now,
+                policy_digest=self.policy_digest,
+                session_id=current.session_id,
+                environment_epoch=current.environment_epoch,
+            )
+            self.warmup_checks.append(proof)
+            if self.accepted(proof):
+                consecutive.append(len(self.warmup_checks) - 1)
+            else:
+                consecutive.clear()
+            if len(consecutive) == self.policy["warmup_pairs"]:
+                self.warmup_references[current.observation_id] = list(consecutive)
+                return current, frame, max_age
+            previous, previous_frame = current, frame
+        raise RuntimeHalt("WARMUP_UNSTABLE")
+
+    async def run(self):
+        report = await super().run()
+        report["warmup_checks"] = self.warmup_checks
+        report["warmup_references"] = self.warmup_references
         return report

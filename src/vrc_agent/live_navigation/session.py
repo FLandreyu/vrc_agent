@@ -25,7 +25,7 @@ from .runtime import SupervisedNavigation
 from .skill import CalibratedSkill, calibrated_prompt
 from .stability import load_policy
 from .stability_report import validate_stability_report
-from .stable_runtime import StableNavigation
+from .stable_runtime import StableNavigation, StableNavigationV2
 from .world import load_live_world
 
 
@@ -65,14 +65,17 @@ async def navigation_entry(args):
     data["mode"] = "live"
     data["perception"]["send_images"] = True
     data["perception"]["max_retries"] = 0
-    stable = config.navigation_design == "stable-inference-v1"
-    if stable and load_policy()[0]["status"] != "FROZEN":
+    stable = config.navigation_design != "legacy"
+    policy_version = "v2" if config.navigation_design == "stable-inference-v2" else "v1"
+    if stable and load_policy(policy_version)[0]["status"] != "FROZEN":
         raise ValueError(
             "stability policy requires field calibration and a newly frozen version; "
             "candidate policies cannot enable live navigation"
         )
     data["perception"]["timeout_ms"] = (
-        load_policy()[0]["inference_ms"] if stable else min(1000, config.perception.timeout_ms)
+        load_policy(policy_version)[0]["inference_ms"]
+        if stable
+        else min(1000, config.perception.timeout_ms)
     )
     config = AppConfig.model_validate(data)
     clock = SystemClock()
@@ -96,6 +99,8 @@ async def navigation_entry(args):
             flush=True,
         )
         runtime_class = StableNavigation if stable else SupervisedNavigation
+        if config.navigation_design == "stable-inference-v2":
+            runtime_class = StableNavigationV2
         runtime = runtime_class(
             client,
             lambda authority: live_capture(

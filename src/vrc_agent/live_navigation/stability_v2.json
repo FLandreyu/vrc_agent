@@ -1,0 +1,36 @@
+{
+  "version": "local-rgb-stability-v2-candidate",
+  "status": "REQUIRES_FIELD_CALIBRATION",
+  "frame_size": [
+    2160,
+    1440
+  ],
+  "metric": "rgb_tolerance_local_guard_v2",
+  "excluded_rectangles": [
+    [
+      1664,
+      0,
+      1856,
+      512
+    ]
+  ],
+  "inference_ms": 8000,
+  "task_timeout_s": 30.0,
+  "max_actions": 40,
+  "max_inference_attempts": 3,
+  "checkpoints": [
+    "after_inference",
+    "before_submit"
+  ],
+  "freshness_ms": 1500,
+  "pixel_tolerance": 2,
+  "max_changed_ppm": 10000,
+  "tile_size": 32,
+  "tile_offset": 16,
+  "max_tile_changed": 15,
+  "protected_margin": 32,
+  "black_threshold": 8,
+  "warmup_pairs": 2,
+  "warmup_max_frames": 8,
+  "warmup_interval_ms": 100
+}
