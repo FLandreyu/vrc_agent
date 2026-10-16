@@ -72,3 +72,10 @@ python .runtime/verify/v_t08_dir_a_review.py → 61 checks, 0 failed
 3. 新版本冻结后再做真实延迟复测与固定 20 次任务；此前不得把本候选接入 live，也不得移用离线证据宣称实机成功率。
 
 GraphFlow：本轮未调用 `graphflow_context/plan/index`（复核以源码与自建探针为准），未宣称图谱更新。
+
+## 8. 实现方修正回应（2026-10-16，Codex / root；不改变上述独立复核结论）
+
+- F1 选择第 7 节第 1 条允许的**文档方案**：在 `T08_direction_A.md` 的 R2–R4 节区分三项运行时读取参数和两项声明，点名 `NavigationLimits.max_actions` / `SupervisedNavigation.run`、`SupervisedNavigation.capture` / `StableNavigation.before_submit` 的实际强制点，并明确报告校验器仍读取 freshness_ms。理由是保留已复核运行行为，不新增策略调参入口或原位改冻结摘要。只改两项 JSON 不改变运行时的事实仍保留；未来改版必须同步实际强制点和校验、回归、复核，不能只改声明。
+- F2 已用 UTF-8 中文恢复注释，说明额外帧仅复验既有观测、不刷新采集时间；修正前后去位置属性的 Python AST 摘要相同，未改变可执行逻辑。
+- F5 已补明「保留区域全部 RGB 通道 ≤8 才判黑」、(9,9,9) 近黑可通过稳定性比较，以及 `build_scene` 不检查像素、不能保证拒绝高置信幻觉的限制。这同时限定第 3 节“得不到可用实体”的解释：不能将其作为普遍安全保证。
+- F3 未纳入本次修改，F4 仍待现场标定。修正与验证结果见 TASKS 第 38 节；候选 live 拒绝、T08 IN_PROGRESS 及实机 UNTESTED 均保留。

@@ -1,6 +1,6 @@
 # T08 方向 A：慢推理与本机稳定性证据（2026-10-16）
 
-实现者 Codex / root。对应 TASKS 第 34 节。代码与离线验证已实现；尚未独立复核、未现场标定、未执行真实 20 次任务。T08 保持 IN_PROGRESS。
+实现者 Codex / root。对应 TASKS 第 34 节。离线候选已由 DSH / Flash 独立复核（第 37 节，R1–R6 主体未能证伪，发现五项非阻断问题）。本次按复核记录第 7 节第 1 条修正 F1/F2，并补注 F5；未现场标定、未执行真实 20 次任务。T08 保持 IN_PROGRESS。
 
 ## 设计与范围
 
@@ -14,7 +14,7 @@
 
 1. 已归零状态下采集新观测，校验 session/epoch、唯一 ID、单调时间、可见窗口、尺寸和原始 1500ms 时效；IPC 登记后保留不可变帧。
 2. 在线程中编码 PNG；异步等待供应商，仍通过 30ms 轮询授权。结果引用必须匹配请求与原观测 ID；经既有 build_scene 严格构造原始场景。
-3. 重新采集新观测。比较推理帧与当前帧的全部 RGB（忽略没有视觉意义的 BGRA alpha），不缩图、不用平均差。保留区域一像素变化也拒绝；任一保留区域全黑拒绝。
+3. 重新采集新观测。比较推理帧与当前帧的全部 RGB（忽略没有视觉意义的 BGRA alpha），不缩图、不用平均差。保留区域一像素变化也拒绝；两帧中任一帧的保留区域全部 RGB 通道值均 ≤8（8 位通道，含边界）时判黑并拒绝。实现为 `stability.py::compare` 中分块检查 `max(chunk) > 8`，遮罩先置零，不影响保留区域的判断。均匀 (9,9,9) 不算黑，两帧相同时可通过稳定性检查；这不是可见性或语义正确的证明，也不能假定 `build_scene` 一定拒绝近黑图像上的高置信幻觉，它校验的是模型结构化输出而非像素。
 4. 仅相等时从原始场景派生当前场景。新 ID、新采集时间来自实际新采集，不刷新旧 Observation。报告同时保留 `inference_source`、派生 `observation.derived_from` 和 `stability_proofs`；实体引用的派生关系可复验。
 5. 规划前再采一帧复验（`before_submit` 检查点），通过后仍绑定前一步那份**未改时间戳且仍新鲜**的观测；额外帧记录 `validates_observation_id`。然后最多 200ms 本地技能决策、权限检查和 bind_request，控制层继续按原年龄拒绝过期请求。检查点是离散的，不能证明两次采样之间或最后采样之后没有瞬间变化。
 6. 任一稳定性拒绝，旧场景不发送动作，最多三次重新采集/推理。执行前复验也最多三轮；整体仍受任务和租约截止期限制。耗尽为 SCENE_UNSTABLE 并暂停。每个动作结束归零后仍须新推理、新观测、独立稳定性证据，连续两次到达方可 SUCCESS。
@@ -25,7 +25,16 @@
 
 ## R2–R4：时间、取消与权限
 
-冻结策略显式记录：推理预算 **8000ms**、任务 **30s**、动作 **40**、每轮最多 **3** 次推理、观测时效 **1500ms**。8 秒覆盖第 33 节所述秒级延迟的工程预算，不是本轮真实延迟测量。推理超预算为新结局 `INFERENCE_TIMEOUT`；旧路径 `MODEL_LATE` 不改语义。编码/稳定性计算各有 1000ms 截止期，分别为 IMAGE_ENCODING_TIMEOUT/STABILITY_TIMEOUT。
+候选策略文件显式记录：推理预算 **8000ms**、任务 **30s**、动作 **40**、每轮最多 **3** 次推理、观测时效 **1500ms**。其中只有 `inference_ms`、`task_timeout_s`、`max_inference_attempts` 由 `StableNavigation` 读取并驱动运行时；其余两项是当前实现上限的**声明项，不是运行时调参入口**（复核 F1 采用文档说明方案）。
+
+| 策略字段 | 性质与实际强制点 |
+| --- | --- |
+| `max_actions=40` | 声明项。实际来自 `skills/world.py::NavigationLimits.max_actions` 默认 40；`CalibratedSkill` 使用该技能限制，`live_navigation/runtime.py::SupervisedNavigation.run` 按 `range(self.skill.limits.max_actions)` 限制动作次数。只改策略 JSON 不改变运行时动作上限。 |
+| `freshness_ms=1500` | 对运行时是声明项；实际采集与规划前复验分别由 `SupervisedNavigation.capture`、`StableNavigation.before_submit` 的 `min(1500, control.observation_max_age_ms)` 强制，`fresh_proof` 沿用 capture 返回的上限；更小的控制配置会进一步收紧。控制层另按自己的 observation_max_age_ms 检查请求与执行中的运动。报告校验器 `stability_report.py::validate_stability_report` **确实读取**策略 freshness_ms，作为 proof 和动作时效的复验窗口；这不会反向改变运行时限制。 |
+
+选择文档方案的理由：本次不改变已复核的控制行为或让策略文件成为新安全阈值入口，也不原位改候选版本和摘要。当前声明与运行时 40/1500 一致；复核者 monkeypatch 两项为 1 后运行时不随之改变，是该方案下保留的行为，不能宣称已改成运行时读策略。**后续版本不得仅修改这两项声明**；若需要不同上限，须同步审查/修改上述实际强制点、报告校验及回归，重新独立复核和冻结版本。现有摘要检查不自动验证声明与强制点的语义一致性。
+
+8 秒覆盖第 33 节所述秒级延迟的工程预算，不是本轮真实延迟测量。推理超预算为新结局 `INFERENCE_TIMEOUT`；旧路径 `MODEL_LATE` 不改语义。编码/稳定性计算各有 1000ms 截止期，分别为 IMAGE_ENCODING_TIMEOUT/STABILITY_TIMEOUT。
 
 推理预算只允许在停止状态等待，不延长运动、租约或观测时效；动作仍为白名单单轴 200ms。30 秒租约下以 3.5 秒一次推理计算，初次加每步后推理使动作容量约为 7 次（还要扣采集/动作/比较开销）；40 是上限，不能承诺会用满。现有标定没有可靠的单步世界位移数据，因而不能推算 16/20 现场成功率。租约不足按失败处理，本轮未增加租约或续租；若现场确需改变该边界，返回用户决策。
 
@@ -43,6 +52,6 @@ usage/hourly 仍走 T10 原函数；来源为 false、缺金额、未知 token/�
 
 `python -m pytest tests/integration/test_stable_navigation.py -q`：可控时钟 + 内存 HTTP + 真实 control core 验证 3.5 秒路径；另有真实 spawn 子进程/IPC 的 supervised-dry-run 报告。合成画面和模型输出不是实机导航成功证据。测试输出独占 `.runtime/verify/t08_direction_a-<session>.json`，不覆盖前次报告。
 
-下一步由不同执行者按 ADR-009 复核本实现，重点证伪遮罩盲区、离散检查窗口、报告派生链、取消费用、租约边界和新旧路径隔离。之后才进入现场稳定性标定与用户选版；再做真实延迟复测和固定 20 次任务。本轮没有读取密钥、付费调用、live、人工 ARM 或真实输入。
+离线主体复核记录见 [T08_direction_A_review.md](T08_direction_A_review.md)；本次 F1/F2/F5 修正是实现方交付，不冒充新的独立复核结论。后续进入现场稳定性标定与用户选版，再做真实延迟复测和固定 20 次任务。F3 码表缺口仍待 T10 配套处理，F4 遮罩外动画的保守拒绝仍是现场待证项。本轮没有读取密钥、付费调用、live 或真实输入。
 
 GraphFlow 工具本会话不可调用，context/plan/index 未执行。四项门禁实跑结果及最新报告路径见 TASKS 新交接节。

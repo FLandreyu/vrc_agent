@@ -679,3 +679,13 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 - 复核者自建探针修正 6 处**自身**错误（遮罩方位假设、急停触发时机、空变异、请求体白名单漏 `response_format`、码表断言方向、篡改选择命中下游报错），均非产品缺陷，逐条见复核记录第 4 节。
 - 下一条动作：实现方修 F2 并按 F1 的选择处理；F3 建议随 T10 码表一起补齐。之后进入现场遮罩标定与用户选版（新 JSON + 新 `.sha256`，不得原位改候选摘要），再复测真实时延与固定 20 次任务。**T08 保持 IN_PROGRESS**，本轮不构成实机验收（`live_acceptance=UNTESTED`）。
 - 边界：复核只覆盖离线候选与 dry-run 子进程；无现场/实机证据，摘要是本地一致性检查、不保存原始像素，离散检查点不能证明两次采样之间没有瞬间变化，`urllib` 阻塞线程不能被强杀（取消计费已实测，但不承诺远端停止）。本轮未读密钥、未付费、未启动 live、未发送输入。GraphFlow 未调用（复核以源码与自建探针为准），未宣称图谱更新。
+
+## 38. T08 方向 A 非阻断项 F1/F2 修正与 F5 补注（2026-10-16）
+
+- 负责人 Codex / root；状态：本次 F1/F2 修正与 F5 补注已交付。按 `T08_direction_A_review.md` 第 7 节第 1 条执行；**T08 仍为 IN_PROGRESS**，不将修正文档或自测称为新的独立复核或实机验收。
+- **F1 选择文档方案**：`T08_direction_A.md` R2–R4 节已列出三个由运行时读取的参数与两个声明项。max_actions 的强制点是 `NavigationLimits.max_actions`（默认 40）和 `SupervisedNavigation.run` 的循环；freshness_ms 对运行时只是声明，采集/复验实际受 `min(1500, control.observation_max_age_ms)` 约束，控制 core 另查自己的时效；报告校验器则确实读取 freshness_ms。理由：保留已独立复核的执行边界，不使策略 JSON 成为新阈值入口、不原位改冻结版本。复核者 monkeypatch 声明项而运行时不随之改变的事实仍保留；以后修改声明必须同步实际强制点、报告校验、回归与独立复核，摘要检查不会自动证明两者语义一致。
+- **F2**：恢复 `stable_runtime.py::before_submit` 的 UTF-8 中文注释，说明额外帧只复验现有观测、不刷新采集时间。修正前后 `ast.dump(..., include_attributes=False)` 的 SHA256 均为 `2cf06b35afe3f86c2eaa6ca7e2cdec8208d6547688d9d149e4a550bb52c7e029`，可执行逻辑未变；该文件连续问号检查为 false。仅注释/文档修改，未添加镜像实现的测试，复跑现有回归。
+- **F5**：R1 第 3 条已补明保留区域全部 RGB 通道 ≤8（含边界）才判黑；相同 (9,9,9) 近黑帧可通过稳定性比较。补明 `build_scene` 校验结构化输出而非像素，不能保证拦截近黑画面上的高置信幻觉。临时合成帧检查实际返回：8 → equal=false，9 → equal=true；未改变阈值。独立复核文档保留原文，并追加第 8 节实现方回应，不篡改历史复核结论。
+- 四项门禁实跑均退出 0（项目 `.venv`）：`python -m pytest -q` → **865 passed in 56.74s**；`python -m ruff check src tests` → All checks passed!；`python -m ruff format --check src tests` → **116 files already formatted**；`python -m pip check` → No broken requirements found.。
+- 摘要加载复验：策略仍为 `e9350468054d0196419ad345b5220762b224367d3014583a96623262ee994e13`，世界仍为 `dda1d3b1dce2605df37a9f4cf4a68cea5e1e639e7037351fb0c4b54bdfb7e335`。未修改配置、阈值、锁文件、测试或控制行为；未重跑/覆盖复核者独立探针及其 JSON。AGENTS 当前交接入口已同步。
+- 后续：F3 码表缺口仍待 T10 配套处理；F4 仍待现场遮罩标定。候选策略继续拒绝 live，之后仍须现场标定、用户选择新冻结版本、延迟复测与固定 20 次任务。本轮未读密钥、未付费、未启动 live 或发送真实输入；现有测试只使用 dry-run/内存控制。GraphFlow 无可调用工具，context/plan/index 未执行。

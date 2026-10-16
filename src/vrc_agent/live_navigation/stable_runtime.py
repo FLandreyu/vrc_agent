@@ -157,7 +157,7 @@ class StableNavigation(SupervisedNavigation):
             _, _, proof = await self.fresh_proof(source, frame)
             max_age = min(1500, self.client.config.control.observation_max_age_ms) * 1_000_000
             if proof["equal"] and 0 <= self.clock.now_ns() - observation.captured_at_ns < max_age:
-                # ???????????????????????????????
+                # 不刷新绑定观测的采集时间；额外帧仅证明这份仍新鲜的证据可以继续使用。
                 proof["validates_observation_id"] = observation.observation_id
                 return observation, scene
             self.event("stability_rejected")
