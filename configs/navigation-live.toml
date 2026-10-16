@@ -1,0 +1,38 @@
+# 现场 live 配置（用户选定：云端 DeepSeek，2026-10-16）。
+# 密钥只在本机环境变量 DEEPSEEK_API_KEY（User 级已设置），不写进本文件、日志或报告。
+#
+# 【重要】2026-10-16 现场实测：单张 2160x1440 图片推理 3.4s（最快 2.2s，思考开 3.5-7.9s）。
+# 当前 live 会话会把单次推理截到 <=1000ms（live_navigation/session.py 第 65 行），
+# 超时即 MODEL_LATE 终止。本配置在零代码修订前**不能**用于完成现场任务；
+# 详见 docs/TASKS.md 第 33 节。
+
+mode = "dry-run"
+provider = "fake"
+
+[control]
+enable_motion_probe = false
+window_title = "VRChat"
+lease_ms = 30000
+observation_max_age_ms = 1500
+
+[capture]
+window_class = "UnityWndClass"
+window_match = "exact"
+require_unoccluded = true
+require_dpi_awareness = true
+
+[perception]
+provider = "openai_compat"
+model = "deepseek-flash"
+base_url = "https://api.deepseek.com"
+api_key_env = "DEEPSEEK_API_KEY"
+budget_usd = 1.0
+timeout_ms = 20000
+max_retries = 0
+send_images = true
+# 价格表：保守取峰值价（非峰值时段实际扣费约为一半；cache hit 输入更低，均不用）。
+# 来源 api-docs.deepseek.com/quick_start/pricing，2026-10-16 查阅；仅本地估算口径，
+# 不是供应商账单。
+price_input_per_mtok_usd = 0.30
+price_output_per_mtok_usd = 1.20
+price_as_of = "2026-10-16"

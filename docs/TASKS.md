@@ -1,0 +1,661 @@
+# 任务清单与交接记录
+
+更新日期：2026-10-13。**T00–T06 已交付并通过 ADR-009 独立交叉复核（T06 见第 15 节，[复核记录](validation/T06_review.md)）；T07（交流）已实现、完成离线/真机自测，并经独立交叉复核（第 17 节，报告 `.runtime/verify/v_t07_report.md`，六项检查均未能证伪；复核提出的两处瑕疵已修复并复检确认）。实机自主游玩尚未开始。** 证据见 [阶段 1＋2](validation/STAGES_1_2.md)、[T04](validation/T04_capture.md)、[T05](validation/T05_perception.md)、[T06](validation/T06_runtime.md)、[T06 复核](validation/T06_review.md)、[T07](validation/T07_dialogue.md)。第 7–12 节保留交付与修正过程，当前 T00 结论以第 13 节为准。
+
+2026-10-15 补充：**T08 离线部分已通过 ADR-009 独立交叉复核（第 20 节）；2026-10-14 现场标定后，已冻结 live 配置并实现受监管装配，完成 702 项测试及其余三项检查。** 新增 live 路径已于 2026-10-16 通过 ADR-009 独立交叉复核（第 25 节，[复核记录](validation/T08_live_review.md)），**现场 20 次导航验收仍未执行**，故 T08 保留 IN_PROGRESS。最新交接见第 22 节及 [live 验证记录](validation/T08_live.md)；标定源见第 21 节与 [标定记录](validation/T08_calibration.md)。
+
+2026-10-15 补充（T10）：**T10（结构化事件、错误码、延迟与 usage 汇总；价格表带日期/币种；会话预算与耗尽暂停；未知价格/usage 不以 0 替代）已完成离线交付与自测，789 项测试及其余三项检查通过，见第 23 节与 [T10 验证记录](validation/T10_telemetry.md)。** 四个完成条件里的前三条有离线证据；第四条「实机报告折算每小时用量」的机制已实现并有用例覆盖，但**还没有一份真实实机报告产出过这些字段**（无真实付费调用、无实机运行），因此 T10 保留 IN_PROGRESS：待 ADR-009 独立交叉复核，并在现场受监管运行后用 `navigation-report` 核对实际折算结果。
+
+2026-10-16 补充（T10 复核退回与修正）：**T10 独立交叉复核已执行但不通过**（第 26 节，[复核记录](validation/T10_review.md)：净化可绕过、重试预算/费用漏记、预算包装层未接线、未知台账折成完整零值、逐文件校验与时长覆盖不完整，归并为 R1–R5）。实现方已按第 27 节逐项修正并补产品回归（`tests/unit/test_t10_review_regressions.py` 等），四项检查 816 passed，见 [T10 验证记录](validation/T10_telemetry.md) 第 7 节。**修正件必须再由另一执行者复核**；真实实机 `usage`/`hourly` 证据仍未产出。
+
+2026-10-16 补充（T10 修正件复核再次退回与再次修正）：**修正件独立复核再次退回**（第 28 节，[修正件复核记录](validation/T10_revision_review.md)：R2/R3 未能证伪，R1a/R1b/R4/R5a/R5b 仍有 8 项反例）。实现方已按第 29 节逐项修正——固定原因码不留原始 key、字段语义收紧（逐字段落盘矩阵回归）、来源完整性标志保守合并、损坏台账只出 `NO_DATA`、费率分子分母同用配对集合、逐文件隔离巨型数值与超长载荷——四项检查 837 passed，见 [T10 验证记录](validation/T10_telemetry.md) 第 8 节。**本轮修正件仍需另一执行者独立复核**；真实实机 `usage`/`hourly` 证据仍缺，T10 保持 IN_PROGRESS。
+
+2026-10-16 补充（T10 第三轮复核退回与 R4c/R1c 修正）：**第三轮独立复核确认上一轮反例已通过，但又发现 2 项新反例**（第 30 节，[第三轮复核记录](validation/T10_round3_review.md)：R4c 缺金额字段仍被判完整、R1c 非标量拒绝原因拼接任意 Python 类名）。实现方已按第 31 节修正——`usage_defect` 把 `spent_usd_known` 列为必填、报表层不再回显不受控名称（非标量只报登记的内建类别，供应商用具名或序号，会话标签只保留契约 id 形状）、docstring 按实际保证范围改写——四项检查 843 passed，见 [T10 验证记录](validation/T10_telemetry.md) 第 9 节。**修正件必须再由另一执行者独立复核**（复核者与实现者不得为同一执行者）；真实实机 `usage`/`hourly` 证据仍缺，T10 保持 IN_PROGRESS。
+
+## 1. 状态与领取规则
+
+- `TODO`：尚未开始；`IN_PROGRESS`：已领取；`BLOCKED`：缺少具体依赖；`DONE`：交付物存在且满足验收条件。
+- 在“负责人”填写 agent/session 标识，避免两个执行者同时修改同一接口或模块。
+- 有依赖的任务按顺序实施；只有文件范围互不重叠且接口已确定的工作才适合交由不同 agent 同时执行。
+- 本任务表不要求自动启动多个 agent。后续工作按用户授权和运行环境能力执行。
+- 执行者分工（ADR-009）：T04 起的全部产品开发由 Codex/DSH 领取实施；T00 实机测试配套（人工探针、现场日志对账、验证记录）由实机现场会话执行；实现与契约测试由不同执行者交叉验证。
+- 不得一次将所有 TODO 标为 IN_PROGRESS。每次交接写明实际完成范围和下一条可执行动作。
+
+## 2. 任务总表
+
+| ID  | 任务                                | 依赖                              | 建议负责范围                                            | 状态        | 负责人                                                                                                                                                                                                                                                                                                                       |
+| --- | ----------------------------------- | --------------------------------- | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| T00 | 环境与 OSC/桌面能力验证             | 测试客户端与参与环境              | `docs/validation/`, 探针脚本                            | DONE        | user / vscode-copilot；Codex / root 验收（10-13，第 13 节）                                                                                                                                                                                                                                                                  |
+| T01 | 工程骨架、配置与 v1 契约            | 无；先尝试 GraphFlow context/plan | `pyproject.toml`, `contracts.py`, `config.py`, `cli.py` | DONE        | Codex / root                                                                                                                                                                                                                                                                                                                 |
+| T02 | OSC 与 dry-run transport            | T01                               | `transport/`, 传输契约测试                              | DONE        | Codex / root                                                                                                                                                                                                                                                                                                                 |
+| T03 | 独立控制进程、lease、watchdog、接管 | T01,T02                           | `control/`, 控制故障测试                                | DONE        | Codex / root                                                                                                                                                                                                                                                                                                                 |
+| T04 | 窗口采集、Observation 与回放        | T01；live 部分依赖 T00            | `capture/`, replay fixtures                             | DONE        | DSH / Flash（10-13，见第 9 节）                                                                                                                                                                                                                                                                                              |
+| T05 | 感知与模型 provider                 | T01,T04                           | `perception/`, `providers/`                             | DONE        | DSH / Flash（10-13，见第 14 节）                                                                                                                                                                                                                                                                                             |
+| T06 | 规划器与端到端离线闭环              | T03,T05                           | `planner/`, `runtime.py`, 集成测试                      | DONE        | Codex / root（实现）＋ DSH / Flash（2026-10-13 独立复核，第 15 节）                                                                                                                                                                                                                                                          |
+| T07 | 聊天框与半双工语音                  | T02,T03,T05,T06；live 依赖 T00    | `dialogue/`, 音频适配器                                 | DONE        | DSH / Flash（实现＋自测）＋ t07-verifier（2026-10-13 独立复核，第 17 节）                                                                                                                                                                                                                                                    |
+| T08 | 地标导航、结果验证与恢复            | T00,T06                           | `skills/`, `live_navigation/`, 世界配置                 | IN_PROGRESS | Codex / root（live 配置与受监管装配交付，第 22 节）；离线独立复核第 20 节，标定第 21 节；live 路径独立复核第 25 节（五条要求未能证伪）；现场实测第 33 节（云端推理 2.2–7.9s 与冻结 ≤1000ms 上限冲突）；设计修订第 34 节→离线候选交付第 35 节（现场冒烟第 36 节：哈希一致、候选 live 硬拒绝）；待独立复核，之后现场标定与选版 |
+| T09 | 一种桌面简单交互                    | T00,T03,T08                       | 选定技能、交互回放                                      | TODO        | —                                                                                                                                                                                                                                                                                                                            |
+| T10 | 结构化观测、用量与预算              | T01；完整集成依赖 T06,T07         | `telemetry/`, 报告工具                                  | IN_PROGRESS | DSH / Flash（实现/修正）；Codex / root（第四轮离线独立复核通过，第 32 节，38 项未能证伪）；真实实机折算证据待补                                                                                                                                                                                                              |
+| T11 | 两世界验收与故障回归                | T07,T08,T09,T10                   | `tests/`, `docs/validation/`                            | TODO        | —                                                                                                                                                                                                                                                                                                                            |
+| T12 | 安装运行文档与交接打包              | T11                               | README、配置样例、运行手册                              | TODO        | —                                                                                                                                                                                                                                                                                                                            |
+
+T00 实机环境暂缺时可执行 T01–T06 的离线部分。T10 的事件字段和日志基础应随 T01 接入，不要等到 T11 才添加。T03 的本机控制入口与 T01 的 CLI 需协调，避免同时编辑同一文件。
+
+## 3. 各任务完成定义
+
+### T00 — 环境与能力验证
+
+交付 `docs/validation/ENVIRONMENT.md` 和 `CAPABILITIES.md`，记录客户端版本、Windows、硬件、窗口尺寸/DPI、Avatar、测试世界、输入与音频设备。探针只测试明确选择的输入，结束时归零。
+
+能力矩阵必须逐项覆盖：前后/左右移动、水平转向、停止、聊天框、一个 Avatar 参数、抓取/使用/释放、窗口采集、音频采集/输出。状态用 `SUPPORTED`, `UNSUPPORTED`, `UNTESTED`，附复现步骤和观察结果。
+
+完成条件：基础移动和停止实测；确定一种交互是否成立；未知项不得推测为支持。如果无法实现简单交互，提出范围调整并保留 T09 为阻塞，不虚构替代成果。
+
+### T01 — 工程与契约
+
+创建最小包、CLI、配置校验、数据契约、fake clock、fake provider 和测试入口；锁定依赖。环境变量/凭据引用与普通配置分离；默认 dry-run。
+
+完成条件：干净环境可按文档安装；CLI 帮助可运行；无 key 可以运行离线样例；非法枚举、越界轴值、未知动作和多余可执行字段被拒绝。将实际有效命令补充进 README。
+
+### T02 — Transport
+
+实现 OSC 类型/地址映射、受控参数接收、dry-run 记录输出；处理端口占用，避免两个实例争用。测试捕获 OSC 数据包并核对类型标签、地址和参数。
+
+完成条件：轴是 float，按钮是 int，聊天参数为文档要求的类型；归零可重复调用；dry-run 无真实发送。UDP 发送成功仅记录 transport 结果。
+
+### T03 — 控制与停止
+
+独立控制进程独占发送，实现 ARM、lease、心跳、动作时限、取消、抢占、队列上限与 stop 命令。显式确定用户接管按钮/热键及窗口焦点保护；不得假设所有真实键鼠输入都已自动检测。
+
+完成条件：fake clock 故障测试通过；主进程被终止后 watchdog 仍运行并归零；过期/旧 epoch/重复动作不会执行；恢复不自动 ARM。实机停止证据在 T00/T11 补充，不能用模拟替代。
+
+### T04 — 采集与回放
+
+固定窗口采集并记录时间、尺寸和窗口状态；构造小型合成素材；replay source 遵守 Observation 协议。黑屏、最小化、窗口消失和分辨率改变要显式报告。
+
+完成条件：采集失败不会复用旧截图冒充新帧；回放可以稳定复现事件顺序；默认不将原始画面落盘。live 兼容性需 T00 证据。
+
+### T05 — 感知与模型
+
+实现假模型和至少一个可配置的真实供应商适配器，输出 SceneState、置信度、引用证据和 usage。支持 deadline、取消、有限重试和畸形结果拒绝。
+
+完成条件：超时/错误/乱序响应不会绕过控制层；看不清时返回 unknown；测试使用合成数据且默认不计费。真实供应商冒烟测试单独记录，不是离线测试前置条件。
+
+### T06 — 离线完整闭环
+
+实现感知→规划→动作校验→执行→新观测→结果验证，串联 session/observation/action ID。模型只返回 ActionProposal，不得生成权限字段。
+
+完成条件：一条正常导航模拟、一条无进展失败、一条模型迟到、一条急停中断均可重放；每次动作结束归零；未观察到目标状态时 verification 不能为 SUCCESS。
+
+### T07 — 交流
+
+先完成限长、节流、过期丢弃的聊天框队列，再接 ASR/TTS 与虚拟麦克风路由。用配置选择设备，提供自声回流诊断及半双工状态。
+
+完成条件：20 轮一对一交流有时间记录；播放能被本机停止立即取消；暂停期间不积压旧发言；默认不保存真人语音。外部驱动若需要安装，作为用户可执行的独立环境步骤记录。
+
+### T08 — 导航与恢复
+
+实现地标世界配置、短动作技能、基于新观测的到达与无进展判定。固定第一世界 20 次任务集，提供成功判据和失败分类。
+
+完成条件：第一世界 ≥80% 导航成功率；接管计失败；卡住最多有限恢复后暂停。世界配置不伪装成通用地图接口。
+
+### T09 — 简单交互
+
+仅选择 T00 已验证的交互，定义前置条件、控制序列、可见结果和失败恢复。若需要新增键鼠等接口，先修订 ADR 和架构契约，再立实现任务。
+
+完成条件：20 次独立实测成功率 ≥80%；保存脱敏结果表；发送输入但状态未改变不得算成功。
+
+### T10 — 日志、费用和预算
+
+建立结构化事件、错误码、延迟和 usage 汇总；价格表带日期/币种；支持会话预算和耗尽暂停。未知价格/usage 明确标记，不以 0 替代。
+
+完成条件：一份离线报告可贯穿各模块；异常日志无 key/授权头/原始媒体；预算到限不再发起付费调用；实机报告能折算每小时估计用量。
+
+### T11 — 实机验收
+
+完成开发规划中的固定任务集、第二世界适配、两次 30 分钟运行，以及断网、模型超时、焦点丢失、Avatar/环境变化和主代理崩溃测试。
+
+完成条件：报告原始分母、成功数、接管数、p95 延迟、运行成本、客户端环境和失败清单。公开/无人值守部署许可边界另行记录，不因测试通过而宣称已获准。
+
+### T12 — 可交接交付
+
+更新 README 为实际安装和运行说明，提供脱敏配置、模型/音频设置步骤、启用与急停方式、常见故障和已知限制。区分离线、付费在线及真实控制测试。
+
+完成条件：另一名执行者能在干净环境按文档跑通离线示例；具备相应测试环境后可重复实机步骤；所有未通过项明确列出，无假命令或空壳功能宣称。
+
+## 4. 验证证据模板
+
+每个任务完成时附以下信息；路径指向真实存在的文件。具体可执行验证命令已记录在 README 和阶段验收记录中。
+
+```text
+任务 ID：
+负责人 / 会话：
+日期与代码版本（无 Git 时写明）：
+修改文件：
+验证命令与退出码：
+验证环境（fake / replay / live）：
+结果与证据路径：
+未验证项 / 已知限制：
+接口或设计决策变化：
+GraphFlow context/plan/index 状态（不可用须注明）：
+下一条可执行动作：
+```
+
+## 5. 初始交接
+
+- 2026-10-12：根目录初始为空；已创建 README、AGENTS 和三份开发文档；未创建功能代码或安装依赖。
+- 用户已选择“AI 控制玩家角色，自主走动、社交和简单互动”。
+- 桌面模式、本机运行、两个指定世界、Python 等是首版设计选择，尚未经过实际环境验证。
+- 本会话可用工具列表中没有 GraphFlow；未调用 context/plan/index，未建立图谱。后续执行者先尝试恢复该工具并按 AGENTS 工作。
+- 下一步：领取 T01，固化契约与 fake provider；具备测试客户端时启动 T00。不要直接实现复杂导航或添加未经验证的抓取接口。
+
+## 6. 最新交接：阶段 1＋2（取代初始交接的“下一步”）
+
+- 任务：T01、T02、T03；负责人：Codex / root；日期：2026-10-12；版本：0.1.0，无 Git 提交。
+- 已实现文件：`src/vrc_agent/` 下 contracts/config/clock/cli、providers/fake、transport/osc、control/core/service/platform、telemetry；测试位于 `tests/`；依赖见 `pyproject.toml` 和 `requirements.lock`。
+- 验证：55 项 pytest 通过；主环境和干净环境安装、doctor、离线输入演示及 pip check 成功。具体环境、命令和范围见 [阶段 1＋2 验证记录](validation/STAGES_1_2.md)。
+- T03 的 DONE 指控制软件与离线故障验证完成；真实 VRChat 停止效果、热键和焦点保护的实机效果仍归 T00/T11 验证，没有将其标为已验收。
+- T10 日志基础已随 T01 实现，费用、预算和日志自动保留未实现，T10 保持 TODO。
+- 实现选择：本机 Python 3.14.6；IPC 继承管道传 JSON；Windows 命名 Event 仅允许急停；live ARM/RESET 只接受人工热键；更新 ADR-007/008。
+- GraphFlow context/plan/index 不可用，未调用。后续工具可用时补建索引。
+- 下一条可执行动作：具备客户端则领取 T00；否则领取 T04，接入窗口采集和可重复回放。不要把固定 fake provider 演示当成 T06 的视觉决策闭环。
+
+## 7. 交接：T00 首轮实机（2026-10-13）
+
+> 保留原交付记录骨架；统计与证据表述已按复核 R4 更正。当前结论与下一步以第 13 节为准。
+
+- 任务：T00（进行中，主要项已完成）；负责人：user（实机操作）/ VS Code Copilot 会话（探针代码、日志对账与记录）；日期：2026-10-13；版本：0.1.0，无 Git 提交。
+- 已完成实测：前进、后退（Ctrl+F11）、左移、右移、水平右转（F6）、水平左转（Ctrl+F12，≈90°）与停止（急停归零、动作到期归零）——运动方向全向覆盖；使用（UseRight/椅子）、抓取（GrabRight/拾取物）、丢下（DropRight）、聊天框（chatbox）、Avatar 参数接收（GestureLeft 手势全序列）均实机通过；F8/F9/F10 热键、焦点绑定与保护、状态机守卫、按键被拒留痕、全局热键冲突检测（F12 被占用时启动明确失败）。证据与复现步骤见 [能力矩阵](validation/CAPABILITIES.md)。
+- 代码变更：人工探针扩展为十键（F7 前进 / Ctrl+F11 后退 / F6 右转 / Ctrl+F12 左转 / F5 左移 / F4 右移 / F3 使用 / F1 抓取 / F11 丢下 / F2 聊天）；`probe_dispatched`/`probe_released` 按键来源与释放日志；被忽略的探针按键记录 `human_command_rejected`；yaw 探针使用契约上限（1.0 × 500ms，灵敏度 ≈ 180°/s）；`BUTTONS` 白名单新增 UseRight/GrabRight/DropRight；热键注册支持修饰符；新增 `parameter_received` 参数接收日志（telemetry 白名单新增 `value`）。新增 `tests/unit/test_probe.py`；README 与 ARCHITECTURE 相关描述已同步。
+- 验证命令与结果：`pytest -q` → 61 passed（退出码 0）；`ruff check src tests` 与 `ruff format --check src tests` 通过；live 监督实测日志 `.runtime/*.jsonl`（九个实机会话）。
+- 环境记录：[ENVIRONMENT.md](validation/ENVIRONMENT.md)（测试世界 VRChat Home、Avatar 小太阳小狗已填；音频设备待补充）。
+- 未验证项（T00 内）：运动/交互/交流/参数接收已实测；窗口采集已由 T04 交付（见第 9 节与能力矩阵）；音频仍为 UNTESTED（T07 前置）；ENVIRONMENT 的游戏内版本号、音频设备待补齐；探针会话未绑定源码哈希，跨会话参数追溯受限。
+- 配置提醒（当时配置）：测试期间 `configs/default.toml` 的 `enable_motion_probe` 曾为 true；现已恢复 false（见第 10 节），现场配置独立为 `configs/probe.toml`；手势参数白名单保留。
+- 接口或设计决策变化：人工探针键位由单键扩展为十键；探针热键支持修饰符（Ctrl+F12 左转、Ctrl+F11 后退，因单键 F12 被占用）。均为测试工具变更，非 v1 契约变更。
+- GraphFlow context/plan/index 状态：本会话不可用，未调用；不得宣称图谱已刷新。
+- 下一条可执行动作：评审 T00 交付（两条完成条件已达成）；评审通过后领取 T04（窗口采集与回放）；音频设备信息在 T07 前补齐。
+
+## 8. T00 交付复核：退回修正（2026-10-13）
+
+- 复核人：Codex / root；T00 **保持 IN_PROGRESS，不转 DONE**。退回探针实现及验证记录负责人修正。主要实机成果保留，本次未重新操作 VRChat。
+- 完整证据、源码位置、复现与再提交条件见 [T00 复核报告](validation/T00_REVIEW_2026-10-13.md)。
+- **R1 / P1**：按钮探针绕过发送前的租约/心跳到期检查。离线复现到期后先发 UseRight=1，再归零停止；必须在发送前拒绝。
+- **R2 / P2**：连按覆盖按钮释放期限，标称 300ms 的脉冲可延长；离线复现约 610ms。需要重入/忙碌策略及 worker 测试。
+- **R3 / P2**：释放及重试全失败仍记 probe_released；运动/聊天被拒仍记 probe_dispatched。必须区分请求、发送成功、拒绝及失败。
+- **R4 / P2**：矩阵“九个会话均验证运动到期归零”“FOCUS_LOST 3 次”“GestureLeft 开头 0 的接收”缺少相符日志；“未验证项无”需与采集/音频 UNTESTED 及环境待补项一致。
+- 日志：逐条核对 `8af16c3c…`、`f8acb2fd…`、`5d97c5f1…`，补查 `2ba6e533…` 并统计全部九份。左转 15 个、后退 11 个已接受动作均有匹配 COMPLETED；另有按键拒绝。坐椅子、抓取、丢下及角度仍是原操作者目视记录，不由日志独立证明。
+- 安全边界：模型/管道契约拒绝探针名，live 管道 ARM/RESET 仍拒绝；热键修饰符及失败清理正确；新增按钮有官方地址及现场依据；重复 neutralize 继续发整数零；参数日志来源经过白名单、类型和值域校验。官方将三按钮标为 VR Only，桌面实测仅适用于已记录环境，详见报告。
+- 验证（项目 `.venv`，均退出码 0）：`python -m pytest -q` → **61 passed in 13.85s**；`python -m ruff check src tests` → 通过；`python -m ruff format --check src tests` → 23 files already formatted；`python -m pip check` → 无依赖冲突。
+- 额外离线复现：`python .runtime/t00_review_repro.py` 确认 R1/R2/R3，输出 `.runtime/t00_review_repro_results.txt`；全部内存桩，无真实输入，不是修复验收。现有 61 项未覆盖这些新增调度边界。
+- 本次修改：本文件、`docs/validation/T00_REVIEW_2026-10-13.md`；另新增 `.runtime` 复现材料。未改产品源码、原始日志、能力矩阵或现场配置。GraphFlow context/plan/index 不可用，未执行。
+- 下一步：修复 R1–R3 并补回归；按 R4 更正证据；默认配置恢复禁用探针、另保留显式现场配置；补测修改后的按钮路径并记录代码版本，再交叉复核是否 DONE。T04 离线部分仍可按既有依赖推进，不能宣称 T00 live 已验收。
+
+## 9. 交接：T04 窗口采集与回放（2026-10-13）
+
+- 任务：T04；负责人 / 会话：DSH / Flash（本会话）；日期：2026-10-13；版本：0.1.0，**无 Git 提交**（本目录不是 git 仓库）。
+- 状态：**DONE**（2026-10-13）。三条验收条件均已满足并有证据；先前唯一阻塞项「VRChat 未被遮挡时的实拍帧」已于同日由人工把 VRChat 切到最前后补齐（3 帧 2160×1440 全分辨率、逐帧不同、遮挡采样 25/25，另留一张人工目视核对的 PNG，见 `docs/validation/T04_capture.md` 第 6 节）。独立交叉验证 Q1/Q2/Q3 均已拿到另一位执行者的产物，Q3 判定为**未能证伪**（见本节末条）。
+- 新增文件：`src/vrc_agent/capture/{__init__,backend,errors,frames,live,replay,source,synthetic,win32}.py`；`tests/unit/test_capture_frames.py`、`tests/unit/test_capture_synthetic.py`、`tests/unit/test_capture_source.py`、`tests/unit/test_capture_privacy.py`、`tests/contract/test_capture_contract.py`、`tests/replay/test_replay_source.py`、素材 `tests/replay/t04_smoke.json`、`docs/validation/T04_capture.md`。
+- 修改文件：`src/vrc_agent/config.py`（新增 `CaptureConfig`、`AppConfig.capture`、`capture_window_title()`）、`src/vrc_agent/cli.py`（新增 `capture`/`replay` 子命令、`doctor` 采集只读字段、`RecordingSink`）、`src/vrc_agent/contracts.py`（导出 `IDENTIFIER_PATTERN`/`MAX_IDENTIFIER_LENGTH`，纯重构、行为不变）、`configs/default.toml`（新增 `[capture]` 段）、`docs/ARCHITECTURE.md`（第 1/2/4/7/8 节）、`README.md`。
+- 验证命令与退出码：`python -m pytest -p no:cacheprovider --no-header --tb=no -q` → **207 passed, 10 errors**（退出码非 0，10 个 error 全部是沙箱 `tmp_path` 权限问题，见下）；加 `--deselect tests/integration/test_process.py` → 207 passed, 7 deselected, 3 errors；`python -m ruff check src tests` → All checks passed；`python -m ruff format --check src tests` → 39 files already formatted；`python -m pip check` → 无依赖冲突。T04 之前基线为 51 passed + 同一批 10 errors，本任务净增 156 个通过的测试（24 帧表 + 26 合成 + 46 状态机 + 13 契约 + 40 回放 + 7 隐私）。
+- 验证环境：离线（假后端 + 合成素材）与 **live 只读采集**（本机真实窗口，`vrc-agent capture`）。全程**未发送任何 OSC/UDP、未操作 VRChat、未落盘任何画面**。
+- 三条验收条件与证据：① 采集失败不复用旧帧——八种失败全覆盖的单测，失败步 `frame_ref`/`frame_size` 恒为 null、引用逐次唯一；真机（VRChat 被遮挡）连续两次得到 `window_state="unknown"`、`reason_code=WINDOW_OCCLUDED`、无帧；② 回放稳定复现事件顺序——两次独立进程运行得到同一 `sequence_digest`（`fadc5ee10ccf227abea0ff6cf8374073919e94aed94878c2a38f08de7786e22a`），逐字段一致、虚拟时钟不等待真实时间；③ 默认不将原始画面落盘——AST 扫描 + 运行期把所有写文件入口换成哨兵后跑完整回放，帧只进内存帧表，`frame_ref` 受标识符正则约束、不可能是文件路径。
+- 真机实测（Windows、150% 缩放、物理 2160×1440）：`vrc-agent capture --config .runtime/verify_visible.toml --frames 2 --interval-ms 250` 对未被遮挡的窗口拿到 2 帧不同画面（2160×1368，sha256 前缀 `00ecb3c9…` / `65e2608c…`，遮挡采样 625/625 命中）；默认配置打 VRChat 时如实报 `WINDOW_OCCLUDED`（采样 0/25 命中）。**VRChat 切到最前后（人工操作）**：`capture --frames 3 --interval-ms 250` → 3/3 `window_state="visible"`、`frame_size=[2160,1440]`、遮挡采样 25/25 ratio=1.0、`events=[]`、`frames_held=3`，三帧 sha256 前缀依次 `36852730c36738c9` / `977215d85d1189c8` / `2e9b86d1103c0f48`（互不相同）；另用开发探针 `.runtime/t04_visual_check.py` 抓一帧写成 PNG（`sha256[:16]=710c1c0ec7b488bf`）并人工目视核对，确认画面就是 VRChat 本体（头像选择菜单「1/60」、VRChat 世界与 UI），即采到的确实是目标窗口的真实内容而不是遮挡窗口的画面。四条必须遵守的实测限制（BitBlt 读屏幕、窗口 DC 对 DWM 窗口返回全零、`PrintWindow` 对 VRChat 返回 `ERROR_ACCESS_DENIED`、采集进程必须 per-monitor-v2 DPI 感知）记在 ARCHITECTURE 第 4 节与验证记录里。
+- 未验证项 / 已知限制：窗口被遮挡按设计直接判失败，所以采集要求目标窗口可见且未被其他窗口覆盖（VRChat 全屏被覆盖时会失败，而不是把遮挡窗口的画面当成采集结果）；音频采集属 T07；世界加载识别未实现（T06/T08）；`capabilities` 里采集一项目前仍是本机单机结论，换机器需重跑探针。待改小项（不影响正确性，由复核发现）：`replay --fixture` 指向不存在的文件时走 `OSError` 分支、退出码 1 且措辞偏原始，输入错误按约定应给退出码 2。
+- 接口或设计决策变化：`Observation.frame_ref` 固定为内存帧引用（受 `Identifier` 正则约束，不是文件路径）；采集失败用新的 `CaptureFailure` 枚举，不复用 `contracts.Reason`；非 `visible`（含黑屏、遮挡、最小化）会让已启用控制器暂停（沿用原因码 `FOCUS_LOST`）；`captured_at_ns` 在抓取前读取，宁可让观测显得更旧；采集后端抛出 `CaptureError` 以外的异常时状态机不吞（异常逃逸、不产生观测、不计失败、帧表不增长），该语义由回归测试固定。
+- 沙箱限制（如实记录，不是产品缺陷）：本会话文件沙箱不允许 pytest 创建 `tmp_path` 临时目录，导致 10 个既有测试（7 个 `tests/integration/test_process.py`、1 个 `tests/unit/test_contracts.py`、2 个 `tests/unit/test_telemetry.py`）报 `PermissionError: [WinError 5]`；这些测试不涉及 `capture/`，在可写临时目录的环境里应通过。另：本会话的 `pwsh` 实际是 Windows PowerShell 5.1（默认 ANSI 代码页 936），用 `Get-Content`/`Set-Content` 读写 UTF-8 中文文件会损坏内容，必须改用文件编辑工具或显式指定 UTF-8。
+- GraphFlow context/plan/index 状态：本会话 **GraphFlow MCP 可用**（`graphflow_context`/`graphflow_plan`/`graphflow_index` 均在工具列表中，此前记录的“不可用”指阶段 1＋2 与 T00 的会话）；本次未用它生成计划，是否已建立索引以图谱侧状态为准，不宣称已刷新。
+- 交叉验证（ADR-009）：实现与独立复核由不同执行者完成；三位复核子代理都在收尾前异常结束（无收尾消息），但 Q3 留下了完整报告、Q1/Q2 留下了脚本与原始输出，全部在 `.runtime/verify/` 下。本节如实区分「谁写的、谁运行的、谁判读的」。**Q1（失败不复用旧帧）**：独立复核子代理自写 253 行探针（自写假后端，不引用 `tests/` 桩代码），14 步序列逐条断言后 `violations: []`；脚本由实现者在本机重跑并原样记录输出，属「独立编写、非独立运行」。**Q2（回放稳定复现）**：第二位复核子代理自写探针并独立运行——10 份完整 CLI 输出逐字节相同（均 4025 字节、SHA256 `2c0ed538d85a7536`，覆盖两次独立进程、不同 cwd、`PYTHONHASHSEED=0/999`、不同 `TEMP`、`--fixture` 相对/绝对路径），13 步与它自建的独立模型逐条吻合、digest 与黄金值一致，破坏性变异（耗尽不循环、重复步、键序、全失败、20 连成功触发 LRU 淘汰）结果确定，非法素材（0 步、`at_ms` 倒退）稳定报错；它没有产出结论文件，判读由实现者按其原始输出完成，属「独立编写 + 独立运行 + 实现者判读」。**Q3（默认不落盘）**：第三位复核子代理完成并落盘报告（`.runtime/verify/v_q3_report.md`），判定 **未能证伪**——静态扫描 `capture/` 全包无任何写盘 API（唯一 I/O 是 `load_fixture` 的只读 `read_text`）；运行期把所有写入口换成哨兵后跑采集状态机（2 次成功 + 6 种失败）与回放源（13 观测 / 5 帧 / 耗尽），`sentinel_violations: []`，全目录快照 90 → 90 无变化，`frame_ref` 逐个当文件打开都 `FileNotFoundError`；真实 `replay` 前后 diff 全空。它同时如实记录了残留缺口：真实窗口「采集成功」分支那次运行时 VRChat 正被遮挡，所以 live 成功路径的写盘风险只有静态覆盖（该分支已由本实现的隐私测试与 Q3 的假后端成功路径覆盖），另有用对照实验排除了 4 个后台噪声文件（GraphFlow 缓存与父会话并发写，包括本会话正在编辑的验证记录）。
+- 下一条可执行动作：T04 已结，按依赖可领取 T05（感知与模型 provider）——不要宣称已有画面理解能力。若先处理实机侧，则修 T00 复核退回的 R1–R3 并按 R4 更正证据。待改小项（由 Q2 复核发现，与本任务验收条件无关，未在本轮改动以免让已验证的产物失效）：`replay --fixture` 指向不存在的文件时退出码为 1 而非输入错误约定的 2。
+
+## 10. T00 复核修正（2026-10-13，现场会话）
+
+> 本节保留修正方及现场操作者的交付记录；后续交叉复核结论见第 11 节。
+
+- 任务：修复复核 R1–R3，按 R4 更正证据；负责人：VS Code Copilot 会话（探针实现方）/ user（实机补测人）；状态：代码与文档修正完成，**实机补测已完成（见下），待交叉复核**。
+- R1 修复：新增 `Controller.button_ready()`（先 tick，再核对状态/租约/待归零）；按钮分支发送前调用。过期授权时“按下”边沿不再发送，仅留痕 `human_command_rejected`。
+- R2 修复：未释放前的新脉冲被拒绝（不再延长按下时间）；按钮按住期间运动/聊天探针被拒（互斥）。
+- R3 修复：新增 `probe_rejected`（含 reason_code）与 `probe_release_failed` 事件；`probe_dispatched` 仅在提交非 REJECTED 时记录。
+- 新增回归：`tests/integration/test_probe_safety.py`（9 项，worker 层，内存桩，无 socket/热键/真实输入）。
+- R4 更正：CAPABILITIES 按会话分列证据（停止/到期归零；`FOCUS_LOST` 实为 2 次；手势序列更正为 1→3→4→2→5→6→7→0；左转 4 次/后退 6 次连按拒绝；`inputs_released count` 实测 0/1/2/3）；ENVIRONMENT 更正为 2160×1440、150% 缩放（T04 实测）；第 7 节未验证项边界更正。
+- 配置清理：`configs/default.toml` 探针恢复 `false`；现场显式配置独立为 `configs/probe.toml`；README/ARCHITECTURE 已同步。
+- 验证：`pytest -q` → 226 passed（含新增 9 项）；`ruff check src tests`、`ruff format --check src tests`、`pip check` 通过。
+- 实机补测（2026-10-13 晚；会话 `c3eb6880…`；配置 `configs/probe.toml`；人工观察）：
+  - 正常脉冲：GrabRight 多次 dispatched/released 成对（约 305ms），物体正常被抓取；
+  - 连按拒绝：保持期内连按均记 `human_command_rejected`，游戏内无多余效果（人工确认）；
+  - 急停：F8 后 `inputs_released count: 1`（GrabRight 归零已发送）；手中物体不落下——与既有记录的 Grab 保持语义一致（0 值不解放抓取），非输入残留；急停不发送 DropRight（避免抛掷副作用）；
+  - 到期禁止输入：`EXPIRED_LEASE` 后按 F1/F3 均被拒留痕、游戏内无任何反应（人工确认）——R1 修复实机验证通过。
+- 下一条可执行动作：请复核方交叉复核 T00 是否可转 DONE（复核点：R1–R3 修复与回归、R4 更正后的证据、本节补测记录）。
+
+## 11. T00 修正后交叉复核（2026-10-13）
+
+- 负责人：Codex / root；结论：**暂不转 DONE，T00 保持 IN_PROGRESS**。四项检查通过，R1/R2 与主要补测证据通过；R3 发送失败分支仍未满足第 8 节“区分发送成功及失败”的要求。保留已验收部分，无需重复开发或重做全部实机验证。
+- 范围：`control/core.py` 的 `button_ready()`、`control/service.py` 探针分支及 `probe_log_result()`、`tests/integration/test_probe_safety.py`、CAPABILITIES/ENVIRONMENT、第 10 节，以及完整日志 `.runtime/c3eb688003ad4c42a6710d0f4c281183.jsonl`。本次未操作真实客户端。
+
+### 11.1 修复与回归覆盖
+
+| 项目             | 复核结果                                                                                                                                                                                                                                                             |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1：发送前授权   | **通过**。`core.py:189` 的 button_ready 先 tick，再核对 ARMED_IDLE、无 active、无待归零、有效 lease 及期限；service 在发送按钮 1 前调用。除既有 UseRight 的两项测试，本次额外离线检查 UseRight/GrabRight/DropRight 各自的租约和心跳到期，共 6 个场景，均无按钮发送。 |
+| R2：连按与互斥   | **通过本轮要求**。同一按钮 pending 时拒绝，首个释放期限不覆盖；运动/聊天探针在按钮 pending 时拒绝，运动执行中 button_ready 拒绝按钮。本次补查按钮保持期聊天探针被拒。不同按钮仍可各自执行有界脉冲，现有实现不是所有按钮全局互斥，不能扩大宣称。                      |
+| R3：定时释放失败 | **通过**。仅成功发送 0 才记 probe_released；失败记 probe_release_failed 并进入 core 归零重试。回归注入全部零值发送失败，断言无 probe_released。                                                                                                                      |
+| R3：提交拒绝     | **通过**。REJECTED 记 probe_rejected 并携带 reason_code；聊天限流回归覆盖该分支。                                                                                                                                                                                    |
+| R3：提交发送失败 | **未通过，见 11.3**。FAILED 仍落入 probe_dispatched；当前九项未覆盖此分支。                                                                                                                                                                                          |
+
+九项测试的实际组成：R1 租约/心跳 2 项；R2 连按期限、按钮阻止运动、运动阻止按钮 3 项；R3 释放失败、聊天提交拒绝 2 项；模型/管道入口拒绝与重复归零 2 项。它们覆盖原缺陷的主要场景，但不能据此称所有发送失败路径已覆盖；R1 对另外两个按钮、R2 对聊天的补充检查为本轮额外离线材料，尚未加入正式测试集。
+
+### 11.2 补测日志与 Grab 边界
+
+日志共 52 行、11 对 GrabRight 派发/释放，按单调时钟差计算约 **303.20–306.83ms**，与第 10 节约 305ms 的描述一致。
+
+| 第 10 节结论       | 日志与判断                                                                                                                                                                                                                                            |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 正常脉冲           | 3–14、23–30、38–44 行共 11 对，均无重复 pending 派发；实际抓到物体来自操作者目视记录。                                                                                                                                                                |
+| 保持期连按拒绝     | 8、11、26、29、41 行共 5 次 Grab 拒绝，均位于相应派发/释放之间；原期限没有因连按延后。“游戏无多余效果”为现场人工确认。                                                                                                                                |
+| 急停与重复归零     | 15–16、32–33、45–46、47–48 行均为 count=1 后 MANUAL_STOP/ESTOP；45–48 行支持重复急停。该会话的急停发生在所记录的 300ms 脉冲已经释放之后，不能单凭它宣称已补测脉冲中途急停。                                                                           |
+| 租约到期后禁止输入 | 17 行 ARM，19 行在约 30s 后 EXPIRED_LEASE；20、21 行分别拒绝 probe_grab、probe_use；直到 22 行重新 ARM，区间内没有 probe_dispatched。结合 R1 源码及离线传输记录，支持到期后不发按钮按下；live 日志不是逐包抓包证据，不能证明 UDP 网络绝对无任何报文。 |
+
+CAPABILITIES 与第 10 节均明确：GrabRight=0 结束输入脉冲，但物体仍可能被持有；急停不自动发送 DropRight，避免抛掷副作用。此记录与现场观察一致，**输入归零不等于物体落下**。`inputs_released count=1` 记录的是归零发送路径成功返回，不能当作客户端 ACK；“不落下”属于人工观察证据。
+
+R4 的主要数字已修正（FOCUS_LOST 2 次、手势首个接收为 1、左转/后退拒绝计数等）。还需整理两处文档：CAPABILITIES 的“连按不延长”目前紧接旧 `8af16c3c…/2ba6e533…` 会话，应改引修正后 `c3eb6880…` 的保持期拒绝；本文件第 7 节仍有“default 探针当前 true”的历史措辞，应标为当时配置。当前实际 default 为 false，probe.toml 为显式启用配置，配置清理已完成。
+
+### 11.3 剩余问题 R3b / P2：发送失败仍记已派发
+
+位置：`src/vrc_agent/control/service.py:86–96`。probe_log_result 只排除 REJECTED，FAILED 仍被记为 probe_dispatched。core.submit 在 OSC 发送异常时会返回 FAILED/TRANSPORT_ERROR，所以聊天和运动两条真实 worker 路径都能触发。
+
+本次离线分别令 RecordingTransport.chat / motion 抛出 OSError，运行 ARM → probe_chat / probe_forward：**没有任何成功 send**，却均出现同一 action_id 的 `action_result(FAILED, TRANSPORT_ERROR) → probe_dispatched`。虽然 action_result 能用于事后辨别失败，probe_dispatched 本身仍无法作为成功派发证据，与第 8 节要求不符。现有九项仅检查 REJECTED，未检查 FAILED。
+
+最小修正：仅将 RUNNING/COMPLETED 记为 probe_dispatched；FAILED 使用明确失败事件或带失败状态的请求事件，保留 action_id、reason_code；补聊天和运动发送失败的 worker 回归，断言没有成功派发事件。保持已验证的按钮控制路径不变，避免无关改动。
+
+### 11.4 实际执行记录与下一步
+
+使用项目 `.venv`，四项退出码均为 0：
+
+| 命令                                                          | 结果                         |
+| ------------------------------------------------------------- | ---------------------------- |
+| `.\.venv\Scripts\python.exe -m pytest -q`                     | **226 passed in 16.96s**     |
+| `.\.venv\Scripts\python.exe -m ruff check src tests`          | All checks passed            |
+| `.\.venv\Scripts\python.exe -m ruff format --check src tests` | 40 files already formatted   |
+| `.\.venv\Scripts\python.exe -m pip check`                     | No broken requirements found |
+
+额外检查：`python .runtime/t00_recheck.py`，退出码 0；输出 `.runtime/t00_recheck_results.txt`。使用现有 worker 测试桩，不建立 socket、不注册真实热键。脚本成功表示确认 R1/R2 行为并复现 R3b，不表示 R3b 已修复。
+
+复核时 SHA-256（当前源码指纹，不能追溯证明现场会话运行的是同一源码）：
+
+```text
+control/core.py 4AA16AAB0428918A489129425DC3B6AE92115EE206E2D7E20E23F6918DCBC207
+control/service.py 9FF1DA69AC52331083380157AD86C5479157B6879C7F5EFDB10A91AAE5A8245C
+tests/integration/test_probe_safety.py 187750DEFB934DF249854A80F505A60BEFD14FA7EDCCE678C7BD1381E4A2F376
+.runtime/c3eb688003ad4c42a6710d0f4c281183.jsonl 542F5E6AC7F00AC50962DEEE361B83F1C0BA63711D6B20751ABB39296BA8998D
+```
+
+本次修改：TASKS.md 及 `.runtime` 复核脚本/输出；未修改产品代码、正式测试、现场日志。GraphFlow context/plan/index 本轮不可用，未执行。未重审 T04 的独立交付。
+
+下一步：修 R3b、补两条失败回归并整理上述证据引用，再运行四项检查并交叉复核。若修改仅涉及日志分类且按钮控制路径不变，可沿用本节已核对的实机证据；改变控制路径时再安排对应补测。无剩余问题后再将 T00 转 DONE。
+
+## 12. R3b 修正与再提交（2026-10-13，现场会话）
+
+- 任务：修复第 11 节 R3b（发送失败仍记已派发）；负责人：VS Code Copilot 会话；状态：修正完成，**待末次交叉复核**。
+- 修复：`probe_log_result()` 改为三态区分——`RUNNING`/`COMPLETED` 记 `probe_dispatched`；`REJECTED` 记 `probe_rejected`（含 reason_code）；其余（`FAILED` 等）记 `probe_send_failed`（含 action_id、reason_code）。按钮控制路径未改动。
+- 新增回归（`tests/integration/test_probe_safety.py` 第 10–11 项）：令 `/chatbox/input` 与 `/input/Vertical` 发送抛 OSError，断言无成功 send、记 `probe_send_failed`（reason_code=TRANSPORT_ERROR）、无 `probe_dispatched`。
+- 证据整理（按第 11 节要求）：CAPABILITIES 的“连按不延长”改引修正后 `c3eb6880…` 的保持期拒绝，旧会话标注仅存释放记录；第 7 节 `enable_motion_probe` 措辞改标“当时配置”。
+- 验证：`pytest -q` → 228 passed（回归 11 项）；`ruff check src tests`、`ruff format --check src tests`、`pip check` 通过。按钮控制路径未改动，按第 11 节约定沿用已核实的实机证据，无需重测。
+- 下一条可执行动作：请复核方做末次交叉复核；无剩余问题后按第 11 节约定将 T00 转 DONE；T05 随后解锁。
+
+## 13. T00 末次交叉复核与验收（2026-10-13）
+
+- 负责人：Codex / root；结论：**通过，T00 → DONE**。第 11.3 节 R3b 已修复，两条新增回归通过，证据整理完成；本次范围内未发现剩余阻塞问题。结合第 11 节已确认的 R1/R2、释放失败处理及实机证据，关闭 T00 复核问题。
+- 源码核对：`src/vrc_agent/control/service.py:86` 的 `probe_log_result()` 仅在 RUNNING/COMPLETED 时记录 probe_dispatched；REJECTED 记录 probe_rejected；FAILED 记录 probe_send_failed，包含 operation、action_id、reason_code。聊天与运动探针均调用此函数。按钮授权、重入限制和定时释放分支与上轮审查一致；core.py 指纹未变。
+- 回归核对：`tests/integration/test_probe_safety.py:195`、`:209` 分别对 `/chatbox/input`、`/input/Vertical` 注入 OSError，断言目标地址无成功 send、恰有一个对应的 probe_send_failed、原因 TRANSPORT_ERROR、无对应 probe_dispatched。运动失败后其他轴的零值归零属于安全清理，不能把“目标输入无成功发送”扩大成“没有任何归零报文”。现有探针回归共 11 项，随全量测试全部通过。
+- 证据整理：CAPABILITIES 的连按不延长已引用修正后 `c3eb6880…`，旧 `8af16c3c…/2ba6e533…` 明确仅支持原释放记录；第 7 节配置已注明“当时配置”。实际 `configs/default.toml` 仍为 dry-run、探针 false，现场 `configs/probe.toml` 显式启用探针。
+- 实机证据沿用：本轮修改为日志分类和对应回归，未改变按钮控制路径，按第 11 节约定沿用已核对的 `.runtime/c3eb688003ad4c42a6710d0f4c281183.jsonl`；该文件 SHA-256 与上轮一致。本次没有重新运行真实输入，也没有把离线检查称为新的实机补测。
+
+本轮实际执行（项目虚拟环境，四项退出码均为 0）：
+
+| 命令                                                          | 结果                         |
+| ------------------------------------------------------------- | ---------------------------- |
+| `.\.venv\Scripts\python.exe -m pytest -q`                     | **228 passed in 16.78s**     |
+| `.\.venv\Scripts\python.exe -m ruff check src tests`          | All checks passed            |
+| `.\.venv\Scripts\python.exe -m ruff format --check src tests` | 40 files already formatted   |
+| `.\.venv\Scripts\python.exe -m pip check`                     | No broken requirements found |
+
+验收时源码/证据 SHA-256（无 Git 提交；不是对历史实机运行版本的追溯证明）：
+
+```text
+control/core.py 4AA16AAB0428918A489129425DC3B6AE92115EE206E2D7E20E23F6918DCBC207
+control/service.py CB3AF370FEA7A7DBF0C11850AD18701CE121AE04D3E1F459461A3A86F8334A18
+tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C7BF69B6872A04BC6F1FFC9B
+.runtime/c3eb688003ad4c42a6710d0f4c281183.jsonl 542F5E6AC7F00AC50962DEEE361B83F1C0BA63711D6B20751ABB39296BA8998D
+```
+
+- 验收边界：DONE 表示第 3 节 T00 的基础移动/停止及至少一种交互验证条件满足，并完成本轮探针修正验收；不代表自主游玩或所有世界兼容。音频仍为 UNTESTED，设备及游戏内版本号待补充项按 ENVIRONMENT 保留；窗口采集依第 9 节 T04 记录。Grab 急停只归零输入，不自动 Drop；物体继续被持有的人工观察不等于输入残留。无客户端 ACK，既有日志与现场目视记录的证据边界不变。
+- 本次修改：TASKS.md 的状态/交接、AGENTS.md 的当前开发状态；未修改产品源码、测试或原始会话日志。GraphFlow 工具仍不可用，context/plan/index 未执行，不宣称索引已刷新。
+- 下一步：可按依赖领取 T05（感知与模型 provider）；本次仅完成 T00 复核，没有自动启动 T05。后续需要真实控制时仍须显式 live 模式与本机人工启用。
+
+## 14. 交接：T05 感知与模型 provider（2026-10-13）
+
+- 任务：T05；负责人 / 会话：DSH / Flash（本会话）；日期：2026-10-13；版本：0.1.0，**无 Git 提交**（本目录不是 git 仓库）。
+- 状态：**DONE**（2026-10-13）。第 3 节 T05 完成定义的四项（假模型 + 至少一个可配置真实供应商适配器、输出 SceneState/置信度/证据/usage、deadline/取消/有限重试/畸形结果拒绝、三条完成条件）均有证据；独立交叉验证判定**未能证伪**（见本节末条）。**真实供应商的实机冒烟未执行**（本机没有可用密钥，`doctor` 报 `api_key_present: false`），按 T05 定义「冒烟测试单独记录、不是离线测试前置条件」处理，未执行这件事本身写在验证记录里，不宣称已通过。
+- 新增文件：`src/vrc_agent/providers/{__init__,base,errors,fake,factory,openai_compat,protocol}.py`；`src/vrc_agent/perception/{__init__,errors,interpreter,scene}.py`；`tests/unit/test_perception_scene.py`、`tests/unit/test_perception_interpreter.py`、`tests/unit/test_providers_base.py`、`tests/unit/test_providers_fake.py`、`tests/unit/test_providers_openai_compat.py`、`tests/unit/test_providers_factory.py`、`tests/unit/test_t05_privacy.py`、`tests/integration/test_perception_cli.py`、`tests/contract/test_perception_contract.py`、`docs/validation/T05_perception.md`。
+- 修改文件：`src/vrc_agent/contracts.py`（`SceneState.confidence` + 「没有 confidence 就不许有实体」校验）、`src/vrc_agent/config.py`（新增 `PerceptionConfig`、`AppConfig.perception`、价格/base_url/预算校验）、`src/vrc_agent/cli.py`（新增 `perceive` 子命令与 `perceive_run()`、`doctor` 增加感知供应商块）、`configs/default.toml`（新增 `[perception]` 段）、`docs/ARCHITECTURE.md`（第 3/4/7/8 节）、`README.md`。
+- 验证命令与退出码：`python -m pytest -p no:cacheprovider --no-header --tb=no -q` → **437 passed, 10 errors**（退出码非 0；10 个 error 与 T04 记录的是同一批沙箱 `tmp_path` 权限问题，分布 7 个 `tests/integration/test_process.py` + 1 个 `tests/unit/test_contracts.py` + 2 个 `tests/unit/test_telemetry.py`，无一涉及 `perception/`/`providers/`）；`python -m ruff check src tests` → All checks passed；`python -m ruff format --check src tests` → 58 files already formatted；`python -m pip check` → 无依赖冲突。T05 相关 9 个文件合计 **219 passed**（场景 37 + 解释器 21 + provider 基础 20 + 假供应商 20 + 真实适配器 52 + 工厂 17 + 隐私 8 + CLI 集成 10 + 独立契约 34）。
+- 验证环境：全部离线（回放素材 + 假供应商；真实适配器用注入的 stub 传输层）。**未打开任何 socket、未调用任何模型、未发送 OSC、未落盘任何画面**。新增 `python -m vrc_agent perceive --max-steps 3` 冒烟：3 个场景、`confidence=0.6`、实体证据指向本次观测、`usage.calls=3`、`cost_complete=true`、`stop_reason=max_steps`；`doctor` 打印感知块且不含密钥值。
+- 三条完成条件与证据：① **超时/错误/乱序不绕过控制层**——`OUT_OF_ORDER`/`MISROUTED_RESPONSE`/`ProviderError` 三条路径都不产出场景，场景字段与 24 个动作/权限字段零交集（`extra="forbid"`），用 `SceneState` 当 `ActionRequest` 会被校验拒绝，独立复核用 12 个越权字段的恶意载荷与「模型伪造租约」「绑定未见过观测」等场景确认动作数为 0；② **看不清返回 unknown**——7 条路径（非对象载荷、空实体、bbox 越界、证据不匹配、`window_state != visible`、无帧、观测过旧）全部得到 `confidence=None` + 空 `entities` + 至少一条原因文本，契约层强制「没有 confidence 就不许有实体」；③ **合成数据与默认不计费**——默认 `provider=fake`（免费、无网络、token 与费用是确实的 0），哨兵堵住 `urlopen`/`getaddrinfo`/`create_connection` 后跑默认感知，联网拦截 0 次；付费供应商必须同时满足「配置 `budget_usd>0`」「环境变量里有密钥」「命令行显式 `--allow-paid`」，未知费用记 `unknown_cost_calls` 而**不记成 0**（零预算直接 `BUDGET_EXCEEDED`）。
+- 未验证项 / 已知限制：真实供应商 HTTP 路径（畸形响应、重试、超时/取消传播、`send_images=true`）只有离线 stub 覆盖，未对真实端点验证；`deadline`/`cancel` 未构造真实到期场景（只验证了「已过期即超时」与「已取消即取消」）；感知只做「观测 → 场景」，规划器、世界结果验证、语音均未实现（T06/T07）；`doctor` 里的 `dpi_awareness: "unaware"` 是 doctor 进程自身的状态（它不做采集、不设感知级别），采集路径由 `live_capture()` 先确保 per-monitor-v2，T04 已实测。待改小项（不影响正确性）：CLI 参数错误只给通用提示（`Invalid configuration or command.`），付费门禁与 `--max-steps` 越界的**具体原因**只由库层异常给出；`replay`/`perceive --fixture` 指向不存在的文件时退出码 1（输入错误按约定应为 2，沿用 T04 记录的同一问题）。
+- 接口或设计决策变化：`SceneState` 新增 `confidence`（场景整体可信度取实体最小值、模型自报值不被采信，`None` 表示看不清且此时 `entities` 必须为空）；**供应商失败不降级成 unknown 场景**（`ProviderError` 原样上抛：unknown 场景的含义是「问过了看不清」，供应商失败是「没问到」，混在一起会让基础设施故障伪装成感知不确定性）；`Perception.stats()` 的 `scenes`/`unknown_scenes` 只统计走过模型通道的场景，守卫挡下的只进 `skipped_*`（账目 `calls + skipped_*` = 调用次数）；没有可用实体且模型没给解释时补一条默认原因文本；供应商失败原因用新的 `ProviderFailure`/`PerceptionFailure`，不复用 `contracts.Reason`。
+- 沙箱限制（如实记录，不是产品缺陷）：本会话文件沙箱不允许 pytest 创建 `tmp_path`（10 个既有 error，同上）；`pwsh` 是 Windows PowerShell 5.1，用 `Get-Content`/`Set-Content` 读写 UTF-8 中文文件会损坏内容（T04 期间已踩过一次），本次全部使用文件编辑工具。
+- GraphFlow context/plan/index 状态：本会话 **GraphFlow MCP 可用**；`graphflow_context` 对 T05 只返回 `contracts.py`/`providers/fake.py` 的泛化锚点（相关度 0.05–0.08，提示问法偏离主线），**没有据此生成计划**，实现依据是文档与源码。收尾时按 AGENTS.md 的 Context-First 约定执行了 `graphflow_index(rootDir="D:\vrc_agent", mode="incremental")`：`indexedFiles=4`、`indexedSymbols=85`、`indexedReferences=132`，向量回填受 2s 预算限制只刷新 256 个节点（`missing=19913`）——**只宣称这次增量索引已执行，不宣称图谱已完全同步**。
+- 交叉验证（ADR-009）：实现（DSH / Flash）与独立复核（子代理 `769e7f02`，其后 `t05-verifier` 复核最终态）由不同执行者完成。第一位复核者自写 `tests/contract/test_perception_contract.py`（34 个用例，期望值独立写死，不复用实现内部判定表）并**自行运行**得到 `34 passed`，同时提出四条不一致/存疑点（供应商失败不降级、`stats()` 语义无文档、空实体场景没有原因文本、`Frame.ref` 与 `Observation.frame_ref` 命名并存）；实现者按其中两条改了实现（补默认原因文本、补 `stats()` docstring）并如实更新了复核者那一条期望值，另两条按「文档说明」处理（见 `docs/ARCHITECTURE.md` 第 4 节）。第二位复核者 `t05-verifier` 对**改动之后**的工作树做只读证伪（报告 `.runtime/verify/v_t05_final_report.md`，攻击脚本 `v_t05_attack2.py` 全部 CHECK PASS），三条完成条件逐条判定**未能证伪**，门禁数字与本文件一致，并记录了残留缺口（见「未验证项」）。**独立性折扣如实记录**：脚本与判读都由复核者完成，但运行在同一台机器、同一个仓库工作树上；`D:\vrc_agent` 不是 git 仓库，没有提交哈希可以锚定被测版本。
+- 下一条可执行动作：T05 已结，按依赖可领取 **T06（规划器与端到端离线闭环）**——注意 T06 起才可能出现「视觉驱动动作」，在此之前不要把 `perceive` 的输出当成导航能力。若要补真实供应商冒烟，需要本机先提供密钥与预算（`[perception].budget_usd>0`、`--allow-paid`），届时另记验证记录。
+
+## 15. T06 实现与离线自测交接 + 独立复核（2026-10-13）
+
+- 负责人：Codex / root（实现与自测）；独立复核：DSH / Flash（见 15.1）。版本：0.1.0，无 Git 提交。**实现、自测与 ADR-009 独立交叉复核均完成，任务 DONE。** 以下测试由实现者编写并实际运行；交叉复核由另一执行者用独立探针完成，未复用实现者的测试与判定表。
+- 交付：`planner/__init__.py`（异步 decide → ActionProposal、可信目标配置、结果验证器）、`runtime.py`（感知→规划→严格校验→bind_request→执行→新观测→验证）、`control/replay.py`（真实 T03 控制内核的离线记录型适配）、`simulation.py`（T04/T05/T03 装配）、四份 `planner/fixtures/*.json`。新增 `tests/unit/test_planner.py`、`tests/integration/test_runtime.py`，共 57 项测试。
+- 接口同步：`control/service.py` 的 bind_request 增加可选可信 Clock 注入，默认时钟语义不变；CLI 新增 `simulate --scenario ...`；pyproject 增加 fixture 包数据；README、ARCHITECTURE、AGENTS 和 [T06 验证记录](validation/T06_runtime.md) 已同步。无新依赖，requirements.lock 未变。
+- 模型/规划权限：Planner 不导入控制或 transport，只输出 Proposal；模型自带 lease/session/epoch/action_id/时间或任意 command 被严格拒绝。可信运行时绑定权限，控制器再次校验。T06 仅执行 motion/wait/stop；unknown、低置信、有 hazards/uncertainties 时等待，不能按模型文本自行更改目标。
+- 正常导航模拟：2 个短运动，第一条 COMPLETED 但 verification=UNKNOWN；只有动作结束后的第三帧出现满足面积条件的目标，第二条才 SUCCESS。无进展：2 次有据但面积未增均 FAILURE，停止于 NO_PROGRESS。模型迟到：800ms 返回超过 500ms deadline，0 动作/0 输入。急停：200ms 动作在 100ms 取消，三轴归零，verification=UNKNOWN，最终 ESTOP。四条报告均可确定性重放，详见验证记录中的摘要和 `.runtime/t06/*.json`。
+- 核心边界验证：每条已执行运动的 finished_at_ns 对应三轴 0；后观测必须严格晚于动作结束；缺帧、旧时间、错误 session/epoch、不匹配证据、模型“声称成功”、采集异常、取消、等待超时及超时后才返回的 Proposal 均不能产生无证据 SUCCESS。独立进程两次 CLI 报告完全一致；socket 哨兵确认离线入口不建输出连接。
+- 本轮最终四项检查（均退出码 0）：`python -m pytest -q` → **504 passed in 28.67s**；`python -m ruff check src tests` → All checks passed；`python -m ruff format --check src tests` → 64 files already formatted；`python -m pip check` → No broken requirements found。使用项目 `.venv`。全量包含此前主代理进程终止、独立急停、旧 epoch/lease、OSC 类型及 T00 探针回归。
+- 包验证：`python -m pip wheel --no-deps --no-build-isolation . --wheel-dir .runtime/t06-wheel` 成功；实际从 wheel 导入模块并运行四场景成功，fixture 随包可用。未声称已做干净系统安装验收。
+- 已知限制：合成帧序列不是物理仿真，图像面积到达判据不能直接用于真实导航。规划器是确定性规则策略；本轮无付费模型、无实机输入、无自动世界加载识别。Runtime 只接离线控制适配，不能替代 live 独立 watchdog；真实导航/恢复、语音仍归 T08/T07。默认不保存原始媒体。
+- GraphFlow：本轮工具不可用，context/plan/index 未执行，不宣称 T05 会话建立的索引已随本次更新。
+- 下一步：T06 已结。按依赖可领取 **T07（聊天框与半双工语音）/ T08（地标导航、结果验证与恢复）**；T08 的真实部分仍受 T00 实机与 live 热键人工启用约束，离线部分可先做。本轮不自动开始这些任务。
+
+### 15.1 独立交叉复核结论（2026-10-13，复核者 DSH / Flash）
+
+- 复核请求（用户下达）：四条场景完整回放、旧权限隔离、迟到丢弃、归零时序、控制路径回归（`bind_request` 新增的 Clock 注入是否保持原语义）、四项检查全跑；未能证伪则 T06 → DONE。
+- 方法：自写独立探针 `.runtime/verify/v_t06_probe.py`（625 行，只读；不复用实现者的测试与内部判定表），含四场景双跑并与实现者保存的 `.runtime/t06/*.json` 逐字段对照、7 种权限字段伪造 + 越界参数 + 越权动作类型 + 无目标运动 + 模型自称成功、五种伪造观测守卫、两种迟到构造、`bind_request` 语义回归、离线哨兵（打桩 `getaddrinfo`/`create_connection`/`urlopen`）。
+- 结论：**六项检查均未能证伪，T06 → DONE**。逐条要点：① 四条场景均由本机 CLI 重跑，全部退出码 0，`sequence_digest` 与文档逐字一致（`9c40eb37…` / `08479730…` / `86f6edea…` / `ed2cdeb2…`），且与实现者保存的报告逐字段相等；`navigation` 第一条 `COMPLETED but UNKNOWN`、第二条才 `SUCCESS`，面积 0.04→0.16→0.49 对阈值 0.35。② 伪造权限字段与伪造观测全部 0 动作 / 0 输入（`RUNTIME_ERROR` / `UNSUPPORTED_CAPABILITY` / `UNSAFE_SCENE` / `EPOCH_MISMATCH` / `SESSION_MISMATCH` / `STALE_OBSERVATION` / `FOCUS_LOST`）。③ 两种迟到构造都是 `MODEL_LATE` 且不产生动作或输入。④ 每个已执行动作 `finished_at_ns` 有三轴归零；急停时序为 `inputs_released` → `action_result CANCELLED` → `stopped ESTOP`，1.1s 起四次三轴全 0。⑤ `bind_request` 的 `clock` 仍为仅关键字且默认 `None`，前四个位置参数顺序未变，默认 TTL 与显式 `ttl_ms`、注入时钟均按预期生效，未伪造的绑定可正常提交。⑥ 四项检查见下。
+- 门禁：受限沙箱内 `python -m pytest -q` → `1 failed, 493 passed, 10 errors in 4.15s`（收集 504）、`ruff check` → All checks passed、`ruff format --check` → 64 files already formatted、`pip check` → No broken requirements found。11 项非通过经机制诊断**全部归因沙箱**（禁止管道捕获子进程输出；沙箱受限创建临时目录时未给当前用户 ACE 且带低完整性标注，`tmp_path` 无法枚举），非项目缺陷；一次性完全权限重跑得到 **`504 passed in 11.51s`**，与实现者自报的 504 passed 一致。
+- 残留缺口与独立性折扣：合成帧不是物理仿真、面积判据不能直接用于真实导航；无实机输入、无付费模型；Runtime 只接离线控制适配，不能替代 live 独立 watchdog；跨进程一致性在沙箱内无法直接跑该项测试，改为「不同进程分别运行 CLI 比对摘要」+ 完全权限下重跑全量套件覆盖。复核与实现运行在同一台机器、同一个工作树上，且本目录不是 Git 仓库，没有提交哈希可锚定被测版本。
+- 完整记录：[T06 复核](validation/T06_review.md)。
+
+## 16. 现场会话补充：live 启动失败诊断与 T07 音频前置（2026-10-13）
+
+- 负责人：VS Code Copilot 现场会话；未修改产品代码、测试与锁文件。修改：[环境档案](validation/ENVIRONMENT.md)（补音频设备）＋本节。
+- live 启动失败诊断：两次 `run --mode live`（退出码 1）均**未留下会话日志**——失败发生于日志创建之前（锁/热键/传输初始化阶段），`.runtime` 无失败痕迹。最可能为**单控制器保护按设计拒绝**（操作时已有控制器存活，或热键/接收端口被占）；当前环境复现 live 启动正常（会话 `e613425d…`）。复现对照（在第一个实例运行期间启动第二个）：
+
+  | 场景                       | CLI 输出                                                | 退出码 |
+  | -------------------------- | ------------------------------------------------------- | ------ |
+  | 同 state-dir               | `RuntimeError: controller unavailable: PermissionError` | 1      |
+  | 不同 state-dir、同发送端口 | `RuntimeError: controller unavailable: OSError`         | 1      |
+  | 全局热键被占 / 9001 被独占 | 同 `OSError` 变体                                       | 1      |
+
+- 待改小项（建议交实现方随下一任务处理）：启动失败时父进程只透出异常**类型名**（`control/service.py` 的 `RuntimeError(f"controller unavailable: {ready.get('error')}")`），丢失 worker 具体原因与 detail 提示；建议附带具体消息（如 `another live controller owns this OSC destination`、`required global hotkey is already in use`），避免现场无法区分失败原因。
+- T07 前置（已完成）：音频设备枚举写入环境档案——输出（激活）：本机扬声器、VB-Audio Voicemeeter 虚拟端点；输入（激活）：本机麦克风、Voicemeeter Out A1–A5/B1–B3；**VB-Audio Voicemeeter 已安装**（T07 虚拟麦克风路由可用）；venv 尚无音频依赖（现仅 pydantic/python-osc/pytest/ruff 等），T07 需新增并更新 `requirements.lock`。
+- 未验证项：音频采集/输出仍为 UNTESTED（T07）；Voicemeeter 路由配置与默认设备确认属 T07 实机的用户可执行步骤；游戏内客户端版本号仍待用户补齐。
+- 下一步：T07/T08 按依赖可领取；现场线无阻塞项。
+
+## 17. 交接：T07 交流（chatbox 队列、半双工与虚拟麦克风路由）（2026-10-13）
+
+- 任务：T07；负责人 / 会话：DSH / Flash（本会话）；日期：2026-10-13；版本：0.1.0，**无 Git 提交**（本目录不是 git 仓库）。
+- 状态：**DONE**（2026-10-13）——实现、离线自测与真机（真实音频设备）自测均完成，四条完成条件都有证据；按 ADR-009 已由另一执行者 `t07-verifier` 只读交叉复核（报告 `.runtime/verify/v_t07_report.md`）：**六项检查逐条未能证伪**；复核提出 F1–F4 四项瑕疵，其中 F1（离线报告音频合计恒 0）、F2（`ChatItem.age_ms` 死属性）已修复并新增回归测试，F3 确认为设计行为并加注＋固定测试，F4 非缺陷；**修复后又做了一轮复检确认**（门禁 `579 passed`、F1/F2 逐项确认、F3 更正为「租约到期后每一条都被拒」）。
+- 新增文件：`src/vrc_agent/dialogue/{__init__,errors,queue,halfduplex,dsp,devices,backend,tts,asr,echo,session,chatbox}.py`；`tests/unit/test_dialogue_queue.py`、`test_dialogue_halfduplex.py`、`test_dialogue_devices_dsp.py`、`test_dialogue_backend_echo.py`、`test_dialogue_session.py`、`tests/unit/test_t07_privacy.py`、`tests/integration/test_dialogue_cli.py`、`docs/validation/T07_dialogue.md`。
+- 修改文件：`src/vrc_agent/config.py`（新增 `DialogueConfig` 与 `AppConfig.dialogue`）、`src/vrc_agent/cli.py`（新增 `dialogue` 子命令、`dialogue_run()`、`describe_dialogue()` 与 doctor 的 dialogue 块）、`configs/default.toml`（新增 `[dialogue]` 段与真机命令示例）、`requirements.lock`（新增 `sounddevice==0.5.6`、`cffi==2.1.1`、`pycparser==3.11`）、`docs/ARCHITECTURE.md`（头部状态、第 4 节新增「交流与音频（T07）」、第 6/7 节与 CLI 清单）、`README.md`。
+- 依赖与前置：本机已装 VB-Audio Voicemeeter；音频层用 `sounddevice`（PortAudio）且**只用原始 float32 缓冲，不依赖 numpy**；真实设备名（只读枚举，88 台）：输出型 `Voicemeeter Input`（WASAPI 42 / MME 14）、`Voicemeeter AUX Input`（43/15）、`Voicemeeter In 1–5`、`VAIO3 Input`，输入型 `Voicemeeter Out A1–A5/B1–B3`（WASAPI 49–57、MME 2–9）；默认输入 index 1、默认输出 index 11。
+- 四条完成条件与证据：① **20 轮一对一交流有时间记录**——离线 `dialogue --turns 20` 得 20 轮 / 40 条计时记录（每轮 listen+playback）全 `COMPLETED/OK`、`total_ms=15240`；真机 `--live-audio --scenario turns --turns 2` 得 4 条全 `OK`（listen 343/333 ms、playback 422/427 ms，墙钟）。② **播放能被本机停止立即取消**——播放逐块进行（默认 20 ms），取消在一块内生效、真实后端用 `abort()` 不等排空；离线 cancel 场景请求 2685 ms 只播 100 ms；**真机**实测请求 2685 ms 只播 **60 ms（3 块）**、记录 129 ms、半双工转 `STOPPED`。③ **暂停期间不积压旧发言**——pause 场景 `pending 5→0`、`dropped_on_pause=5`、恢复后只 `sent=1`，另证过期内容到点即弃（`expired_dropped=1`）。④ **默认不保存真人语音**——`dialogue/` 无写盘 API（静态扫描）且无 `print()`；运行期把文件与联网入口全部换成哨兵后 20 轮照常跑完；采集缓冲转写后立刻 `discard()`；报告与遥测只有字符数/时长/能量/状态/原因码，**无文本、无音频**；本任务不存在「调试媒体落盘」开关。
+- 测试与门禁：`python -m pytest -q` → **576 passed in 10.16s**（T07 新增 72 项：单元 56 + 隐私 6 + CLI 集成 10）；`ruff check src tests` → All checks passed!；`ruff format --check src tests` → 83 files already formatted；`pip check` → No broken requirements found.（本会话沙箱为 `danger-full-access`；受限沙箱里 10 个 `tmp_path` error 与 1 个子进程管道用例属环境限制，与 T07 无关。）
+- 真机证据（`--live-audio` 会真的打开设备）：cancel 场景解析到输出 `Voicemeeter Input` index 42 WASAPI、输入 `Voicemeeter Out B1` index 52 WASAPI，实播 60 ms；echo 场景播放 300 ms、录音 340 ms、`rms=0.0`、`tone_ratio=0.0` → **`no_signal`**（Voicemeeter 未配置 `Input→B1` 回流；诊断如实报告而不编造）；turns 2 场景 4 条全 `OK`。工件：`.runtime/t07_turns.json`、`.runtime/t07_chatbox.json`、`.runtime/t07_live_cancel.json`、`.runtime/t07_live_echo.json`、`.runtime/t07_live_turns.json`；摘要脚本 `.runtime/verify/t07_summary.py`。
+- 接口与设计决策：`[dialogue]` 默认 `enabled=false`，**不打开任何设备**；`--live-audio` 是显式开关并在报告中标注；设备用**名字子串**选择（索引会随驱动变化），后端按宿主 API 偏好排序并保持顺序；chatbox 排队受节流（等窗口而不是丢弃，只有等到的内容过期才 `EXPIRED`），语音通道不受 chatbox 节流；半双工首版不做回声消除，播放期间一律门控麦克风（`MIC_GATED`，不录音不转写），急停 `STOPPED` 是终态只能人工 `reset()`；`dialogue/` 除 `chatbox.py` 外不得依赖 `control`/`transport`（静态测试钉住）；`chatbox.py` 的 `ControllerChatSender` 经真实控制内核提交（离线用记录型传输即可验证 `RATE_LIMITED`/`NOT_ARMED`）。
+- 本轮修掉的真问题：直接 `advance_ms(2000)` 触发 500 ms 心跳超时把控制器打成 `NOT_ARMED`（真实 watchdog 行为）→ `SteppedControllerClock` 按 10 ms 补心跳；控制器已停时 `bind_request` 抛 `ValidationError` → 先查 `snapshot()` 回报 `REJECTED:NOT_ARMED`；语音-only 不再污染 chatbox 队列；后端与会话共用同一步进时钟（否则时长全 0）。
+- 已知限制 / 未验证项：未接入真实 ASR/TTS 引擎（只验证链路，不代表有识别或自然语音合成能力）；未验证用户语音打断；chatbox 真机通路未在真实 OSC 端口上跑过（离线用真实控制内核 + 记录型传输验证）；回流诊断依赖 Voicemeeter 路由，当前实测只能给 `no_signal`；`played_ms` 统计的是完整写入的音频块（块 20 ms），不承诺采样级精确；无回声消除，也不做 VRAI 世界内音量/距离建模。用户可执行步骤（代码不代做）：Voicemeeter `Input→B1` 路由与 VRChat 麦克风选择、安装 Piper/SAPI/Whisper 等真实引擎。
+- 交叉验证（ADR-009）：实现与独立复核由不同执行者完成。复核者 `t07-verifier` 只读（未改 src/tests/docs/configs），自写探针 `.runtime/verify/probe_t07.py`（35 项 CHECK、`FAILS: none`），报告 `.runtime/verify/v_t07_report.md`，六项检查逐条判定**未能证伪**。它提出 F1–F4：F1（离线报告音频合计恒 0，与逐条 9600 ms 自相矛盾）与 F2（`ChatItem.age_ms` 死属性）由实现者修复并各加回归测试；F3（`--with-chatbox` 越过 30 s 虚拟租约后被拒 `REJECTED:EXPIRED_LEASE`，第二轮实测 20 条里 15 OK / 5 被拒）确认为控制层的**设计行为**并加注＋固定测试；F4 非缺陷。修复后复核者又做了一轮复检：F1/F2 逐项确认、F3 表述更正、门禁 `579 passed in 10.72s`、`dialogue --devices` 88 台且 `opens_stream=false`。**独立性折扣如实记录**：复核与实现同机同工作树，且本目录不是 git 仓库，没有提交哈希可锚定版本；复核者明确列出 8 项不在其证据覆盖内的残留缺口（真实 ASR/TTS 引擎、Voicemeeter 实际路由、`--live-audio` 全路径、与 live 控制进程联动、真实语音打断与噪声门控、复核未跑 echo 场景、并发压测、长时间稳定性）。
+- GraphFlow context/plan/index 状态：本会话 **GraphFlow MCP 可用**；`graphflow_context` 对 T06 只返回低相关度的泛化锚点（`runtime.py`/`control/service.py` 等，相关度 0.03–0.13，提示问法偏离主线），**没有据此生成计划**，依据是文档与源码。收尾按 AGENTS.md 约定执行了一次增量索引：`indexedFiles=19`、`indexedSymbols=89`、`indexedReferences=91`，向量回填受 2s 预算限制刷新 256 个（`missing=19188`）——只宣称本次增量已执行，不宣称图谱已完全同步。
+- 下一条可执行动作：T07 已结。按依赖可领取 **T08（地标导航、结果验证与恢复）**——离线部分可先做，实机部分仍受 T00 与 live 热键人工启用约束。接班前注意：T07 只交付了链路与协议，**没有真实语音识别/合成能力**；Voicemeeter 的 `Input→B1` 回流路由与 VRChat 麦克风选择是用户可执行步骤，配置好后 `dialogue --live-audio --scenario echo` 应从 `no_signal` 变为 `loopback_detected`。
+
+## 18. 交接：T08 导航与恢复（离线部分，2026-10-14）
+
+- 负责人：Codex / root。状态 **IN_PROGRESS**，本轮完成用户指定的离线部分；未执行实机导航，不转 DONE。**离线部分已于同日由另一执行者按 ADR-009 独立交叉复核（见第 20 节，四条要求全部未能证伪）**；实机标定、受监管 live 装配与现场 20 次验收仍待完成。T00/T06 已验收依赖按既有交接沿用。
+- 新增：`src/vrc_agent/skills/{__init__,world,navigation}.py`、`skills/worlds/first_world.json`、`navigation_sim.py`、`tests/unit/test_navigation.py`、`tests/integration/test_navigation_runtime.py`、`docs/validation/T08_navigation.md`。修改：`runtime.py`（可选可信导航策略）、`simulation.py`（合成目标颜色/标签）、`cli.py`、`pyproject.toml`、README/ARCHITECTURE/AGENTS/TASKS。无新增依赖；未修改 live ARM/RESET、控制守卫、OSC 白名单或锁文件。
+- 入口：`python -m vrc_agent navigate-suite`，只离线、无 live 参数。真实 T03 控制内核记录输入，图像空间环境按输入积分生成新帧，经 T05 感知再交给 T06 Runtime；模型仅输出 Proposal，权限仍由 bind_request 补齐。世界配置明确 `offline-only` / `SYNTHETIC_NOT_LIVE`，无地图查询和真实世界坐标。
+- 判据：连续两个动作结束后的同 session/epoch/track 新观测达到面积门槛且居中才 SUCCESS；初始帧/COMPLETED/模型解释不能算成功。前进比较面积增长，转向比较偏心减小。报告有实际面积/偏心/证据 ID，逐动作验证结束时三轴归零。
+- 恢复：连续 3 次有据导航运动无进展，已归零后做等待→短侧移→等待，每步重新观察；最多两轮，全任务预算不重置。仍卡住则 `RECOVERY_EXHAUSTED` / PAUSED；连续未知目标有独立等待上限，整个任务最多 40 动作。恢复期间急停回归通过，停止后无非零输入，不自动 ARM。
+- 固定 20 次离线任务：五组各四次，完整定义与 ID 在世界 JSON；**16/20 = 80%**，其中四项暂时阻挡各一次恢复成功。W1-17 接管、W1-18 永久卡住、W1-19 目标缺失、W1-20 模型迟到各计一次失败，固定分母不剔除。四个故障是事先固定的回归条件，80% 不是实机成功率；报告 `live_acceptance=UNTESTED`。
+- 证据：`.runtime/t08/first_world_20.json`，UTF-8；任务配置摘要 `ea1688d3a0235e0a9af03b18a5177208fe80bf74b414ced0d49e696812a0370d`；完整报告摘要 `a7dbd298843c38a7ec52c26872797016937f2b11ab97aa31e4ebe6a73b0bc6f7`。跨进程 CLI/API 完整报告一致，T06 四个旧摘要均保持不变。详细逐任务结果、失败分类及复核入口见 [T08 导航记录](validation/T08_navigation.md)。
+- 四项门禁（项目 `.venv`，实际执行）：`python -m pytest -q` → **653 passed in 11.54s**；`python -m ruff check src tests` → All checks passed!；`python -m ruff format --check src tests` → 89 files already formatted；`python -m pip check` → No broken requirements found。新增 74 项（46 单元 + 28 集成），包含证据伪造/重复/上下文变化、恢复边界、接管计失败、固定分母、等待不推动环境、无网络与每次运动到期归零。
+- 打包：wheel 构建成功，配置资源已打包；从 wheel 导入运行 20 次，完整报告与源码保存件相同。`.runtime/t08-wheel/vrc_agent-0.1.0-py3-none-any.whl` 的 SHA-256 为 `f0d3004a904db240f825d7c8387f1510b5a4aa7119294ddd2e8687e3bbd20982`。没有宣称干净机器安装验收。
+- 限制：仅图像空间试验台与确定性规划技能；未选定真实第一世界、地标、机位及恢复安全区域；真实视觉适配、独立控制进程监管的 live 闭环装配及真实 20 次导航尚待完成。不能把合成颜色/面积直接搬到实机，不能放开 Runtime 的离线控制器限制来绕过 live 安全门槛。
+- 下一条可执行动作：另一执行者按 ADR-009 复核离线实现与契约测试；之后约现场冻结第一世界五组×四次任务、标定可见到达与恢复区域，并完成受监管的 live 装配。真实任务全部计数、接管计失败，≥16/20 且其余完成条件有证据后才转 DONE。本次没有启动实机、换世界或对外发消息。
+- GraphFlow：本轮可用工具列表无 GraphFlow，context/plan/index 均未执行，未宣称索引已更新；此情况与第 17 节其他会话可用工具不同。
+
+## 19. 现场冒烟记录：T07/T08 交付复核（2026-10-14）
+
+- 负责人：VS Code Copilot 现场会话；只读冒烟与诊断脚本（均在 `.runtime/tmp/`），未修改产品代码、测试、配置与锁文件。
+- T08 离线（本机复跑）：`navigate-suite` 退出码 0，两次运行结果一致；报告级 `suite_digest=ea1688d3…`、`sequence_digest=a7dbd298…` 与 [T08 导航记录](validation/T08_navigation.md) 归档值逐字一致（`successes=16`、`success_rate=0.8`、`live_acceptance=UNTESTED`）。证据：`.runtime/tmp/t08_smoke.json`、`.runtime/tmp/t08_compare.py`。
+- T07 离线（本机复跑）：`dialogue --turns 20` → `turn_count=20`、`records=40`、`total_ms=15240`、`played_ms=9195`、`listen_ms=6000`，与第 17 节数字一致；`dialogue --devices`（UTF-8 环境）→ 88 台、`opens_stream=false`。证据：`.runtime/tmp/t07_turns_smoke.json`、`.runtime/tmp/t07_devices_smoke2.json`。
+- **新发现（现场冒烟）**：GBK 控制台重定向 `dialogue --devices` 时崩溃——设备名含 `®`（U+00AE），`print_json`（`cli.py:23`，`ensure_ascii=False`）写 stdout 触发 `UnicodeEncodeError: 'gbk' codec can't encode character '\xae'`；该异常是 `ValueError` 子类，被 main 通用处理器误报为 `Invalid configuration or command...`、退出码 2。复现：`.venv\Scripts\python.exe -m vrc_agent dialogue --devices > out.json`；规避：`$env:PYTHONIOENCODING='utf-8'`。`doctor`/`perceive`/`navigate-suite` 重定向不受影响。诊断脚本：`.runtime/tmp/t07_devices_instrument.py`。
+- 小任务池（供实现方，可一并做）：① 第 16 节「live 启动失败透出具体原因」；② 本节「CLI 输出编码健壮化 + 编码错误不要误报为配置错误」。
+- 下一步：T08 离线交叉复核按第 18 节约另一执行者；T07 现场收尾 = Voicemeeter `Input→B1` 路由后跑 `dialogue --live-audio --scenario echo` 观察 `no_signal → loopback_detected`；T08 实机标定（选第一世界、冻结任务）待复核后另约。
+
+## 20. T08 离线部分独立交叉复核（2026-10-14）
+
+- 复核者：DSH / Flash（与实现者 Codex / root 不同执行者）；只读复核，仅新增 [T08 复核记录](validation/T08_review.md) 并更新本节/任务表，未改产品代码、测试、配置与锁文件。被复核对象：第 18 节与 [T08 导航记录](T08_navigation.md) 的声明。
+- 方法：自写探针 `.runtime/verify/v_t08_probe.py`（约 540 行、**45 项断言全过**、退出码 0），**不使用实现者的测试桩、fixture 或期望值**；覆盖 A 到达证据不可拼接（复用同一观测/跨 session/跨 epoch/track 变化/证据链断裂/低置信/带 uncertainty）、B 未知观测打断确认与 `TARGET_UNOBSERVED`、C 转向偏心改善算进展而面积不必变（含前进无进展对照、3 次无进展触发恢复）、D 恢复期间急停（端到端）、E 等待不推动环境（无输入时偏心/大小与像素逐字节不变）、F 安全不变量。
+- 结论：**四条要求全部未能证伪，未发现产品缺陷**。要点：① 到达必须由连续两帧同 session/epoch/track 且证据链连续的新观测构成，复用帧/旧帧/跨上下文/链断一律清空重来；② 未知帧真的清空到达证据并重新计数，连续 3 次未知 → `TARGET_UNOBSERVED`；③ 转向 |偏心| 改善 >0.02 即算进展（面积不变也不算 `NO_PROGRESS`），前进面积不增才算 `NO_PROGRESS`；④ 恢复中急停（`at_ns=1_740_000_000`，首个恢复反馈 `1_680_000_000`）→ `MANUAL_STOP`/最终 `ESTOP`/`failure_class=TAKEOVER`，**急停后无任何非零输入**、三轴归零；⑤ 无输入时环境偏心/大小不变、帧内容相同；⑥ 模型 `active_goal`/`expected_outcome` 不能改目标或判成功；`Runtime` 仍拒绝非 `ReplayController`（无 live 绕道），`skills/navigation.py` 不导入 control/transport/capture；固定分母 20、20 个唯一任务、`success_rate=successes/20`、四个强制失败任务都计入且都失败、接管优先于历史到达；全套动作 `kind ∈ {motion,wait,stop}`。
+- 摘要对照：`suite_digest=ea1688d3a0235e0a9af03b18a5177208fe80bf74b414ced0d49e696812a0370d`、`sequence_digest=a7dbd298843c38a7ec52c26872797016937f2b11ab97aa31e4ebe6a73b0bc6f7`——复核者两个独立进程的报告与实现者归档 `.runtime/t08/first_world_20.json` **三份逐字段完全相同**；20 行逐任务结果（success/failure_class/recoveries/动作数/outcome）与 T08 记录逐个吻合。
+- 四项门禁（复核者实测，逐字）：`653 passed in 11.13s`（0）／`All checks passed!`（0）／`89 files already formatted`（0）／`No broken requirements found.`（0）。
+- 复核者自己也踩过坑（如实记录）：第一轮探针有 6 处 FAIL，全部是探针把「边长」当面积（0.25 < 门槛 0.35）、转向用例方向写反、以及把 `expected_outcome` 放进嵌套 `args`——修正后 45 项全过；**「未能证伪」是在修掉探针自身错误之后得到的**。
+- 残留缺口（不在本次覆盖内）：实机/真实世界、地标与恢复安全区域标定、受监管 live 装配、真实 20 次导航验收；离线 16/20 是混入四项强制故障的回归集，不是现实成功率估计。独立性折扣：同机同工作树、无 Git 提交哈希可锚定版本；**未能证伪 ≠ 证明正确**。
+- GraphFlow context/plan/index 状态：本会话 **GraphFlow MCP 可用**；`graphflow_context` 对 T08 只返回低相关度锚点（`skills/navigation.py:15/28`、`runtime.py:23`、`planner/__init__.py` 系列，最高 0.25，提示问法偏离主线），**没有据此生成计划**，依据是文档与源码。收尾按 AGENTS.md 约定执行了一次增量索引：`indexedFiles=1`（本次只改了文档）、`indexedSymbols=0`、`indexedReferences=0`，向量回填受 2s 预算限制刷新 256 个（`missing=18664`）——只宣称本次增量已执行，不宣称图谱已完全同步。
+- 下一条可执行动作：**约现场线**做 T08 实机标定（选真实第一世界、记录 world ID/机位/可见到达标志/两轮恢复允许区域），随后做受监管 live 装配与固定 20 次真实任务（接管/超时/卡住都计失败，≥16 次成功）；全部条件满足后才把 T08 转 DONE。本轮没有启动实机、没有改 live 安全门槛。
+
+## 21. 现场标定完成：T08 第一世界任务集（2026-10-14，现场会话）
+
+- 负责人：VS Code Copilot 现场会话（记录）/ 用户本人实机操作；未修改产品代码、测试、配置与锁文件。新增 [T08 标定记录](validation/T08_calibration.md)（现场记录源）。
+- 结果：第一世界 = **VRChat Home**（`wrld_4432ea9b-729c-46e3-8eaf-846aa0a37fdd`，用户私密实例）；Avatar「小太阳小狗」（`avtr_4c2fb90f-478d-4f40-af12-467b33ee41cb`）；客户端 2026.3.3p2（已同步 ENVIRONMENT.md）；截图实测 2160×1440。五组地标（G1 广告牌 / G2 浣熊 / G3 Avatar Mirror / G4 茶几金花瓶 / G5 青蓝菱形图案）各 4 个出发位置 + 1 个到达画面的截图与描述，**共 23/25 张**（G2/G3 的「被挡」未找到自然障碍物，如实记录）；恢复允许区域清单经用户确认。
+- 证据：截图存 `.runtime/t08_calib/`（`g1_*`…`g5_*`、`cand1-5_*`，原件在 Steam 截图目录）；位置描述与恢复区域见标定记录（均经用户确认）。
+- 待定项（交冻结步骤处理）：G1 被挡是否需补「完全不可见」备选；G2/G3 被挡替代条件；G3 到达判据以面板木框尺寸为主；G5 到达为俯视、判据按画面下半部可见大小定义。
+- 下一条可执行动作：**实现方（Codex/DSH）冻结任务清单为 live 配置版本（含摘要），实现受监管 live 装配（真实感知与世界配置适配；保持显式 live + 本机人工 ARM 双门槛），随后约现场做 20 次真实任务**（接管/超时/卡住计失败，≥16/20）。本轮没有启动 live 控制、没有发送输入。
+
+## 22. T08 live 配置冻结与受监管装配交接（2026-10-15）
+
+- 负责人：Codex / root（实现、自测与文档）。**本轮代码交付完成；T08 保留 IN_PROGRESS。** 第 20 节独立复核仅覆盖旧离线部分，新增路径尚未经过 ADR-009 独立交叉复核；真实 20 次任务未执行。完整契约、复现步骤、现场命令和限制见 [T08 live 验证记录](validation/T08_live.md)。
+- 冻结：`skills/worlds/vrchat_home_live_v1.json` 及 `.sha256`，版本 `vrchat-home-live-v1`，摘要 `dda1d3b1dce2605df37a9f4cf4a68cea5e1e639e7037351fb0c4b54bdfb7e335`。五组各四次，共 20 项；配置记录全部起点/朝向/到达参考图与恢复区域。25 项图像引用对应 23 张不同现场 JPEG，摘要逐项核对；标定源第 1–5 节摘要未变。
+- 待定项处理：G1 保留部分遮挡机位；G2/G3 第四次明确用已标定正面位置重复（`front_repeat`），不伪造遮挡照片；G3 以物理木框为目标，G5 用下半画面可见比例，不引入俯仰。数值阈值明确标为工程初值，现场核对后才可做正式批次；变更须重新冻结版本/摘要。
+- 交付：新增 `live_navigation/{world,skill,runtime,session}.py`；配置适配、短动作技能、真实感知/独立控制进程 IPC、新观测到达验证与报告汇总。CLI 新增 `navigate-live --task ...`（默认只读计划）与 `navigation-report --report-dir ...`；示例 `configs/navigation-live.example.toml` 默认 dry-run。无新依赖，锁文件不变。
+- 安全边界：旧 Runtime 的 `ReplayController` 类型检查保留，新循环严格要求 `ControllerProcess`；生产入口显式 live + 本机 F9 ARM，模型/管道不能 ARM/RESET。每个动作重新校验权限/观测/技能限值，前进和恢复分别需要当前可通行/开阔木地板证据；最多两轮恢复后暂停。无自动续租、自动换任务或备用 transport。急停、失焦、主进程终止 watchdog 与到期归零仍由独立控制进程负责。
+- 集成修复：原始 BGRA 帧在 HTTP 适配器编码为有效 PNG，并将实际 observation ID 提供给感知模型；IPC 的 JSON ActionResult 使用 JSON 严格解析。实现期间发现生成脚本中文编码问题，已重新写入 UTF-8 配置并重冻摘要，增加文本完整性回归。
+- 小任务池：第 16/19 节的启动失败原因和 CLI 编码已处理；启动异常透出阶段与已知安全原因，不回显任意异常文本；JSON 在 GBK/ASCII 不可编码时转义，编码错误不再误报为配置错误。新增回归覆盖占用锁原因、敏感异常内容及 Unicode 输出。
+- 最终四项检查（项目 `.venv`，实际执行且退出码均为 0）：`python -m pytest -q` → **702 passed in 37.49s**；`python -m ruff check src tests` → All checks passed!；`python -m ruff format --check src tests` → 97 files already formatted；`python -m pip check` → No broken requirements found.。新增 49 项（27 单元 + 22 集成），包括实际独立进程/IPC、未 ARM、模型迟到、旧帧/权限、运动中急停、租约到期、两轮恢复和结果汇总证据复验。
+- 可复查工件：`.runtime/t08_live/{normal,stuck,late,estop}.json` 及 `control-*/*.jsonl`，均为 **supervised-dry-run / sends_live_input=false**。分别为 SUCCESS（3 动作）、RECOVERY_EXHAUSTED（15 动作/两轮恢复）、MODEL_LATE（0 动作）、MANUAL_STOP（1 动作取消/ESTOP）。重放脚本 `replay_supervised.py` 使用实现者测试素材，不是独立复核。真实 provider 链路测试使用内存 HTTP stub，不是付费网络请求。
+- 原离线 20 次完整报告摘要保持 `a7dbd298843c38a7ec52c26872797016937f2b11ab97aa31e4ebe6a73b0bc6f7`。wheel 已构建并验证可从包加载冻结配置/摘要；工件 `.runtime/t08-live-wheel/vrc_agent-0.1.0-py3-none-any.whl`，SHA-256 `8006c43d3c153fa3630646f855e2274d43ed1f5f5ec63ef2324b33a143898c89`。没有声称干净机器安装验证。
+- 下一条可执行动作：另一执行者独立复核新增 live 路径；约现场先确认视觉服务/模型/预算、真实推理时延及 G3/G5 判据，再按冻结顺序完整执行 20 项。接管/超时/卡住计失败，不筛选最好一次；缺失或重复记录不能作为完整通过批次。全部唯一记录且 ≥16/20、人工核对与其他门槛通过后才转 DONE。当前没有真实导航成功率，也没有启动 live 输入或付费模型。
+- GraphFlow：本轮无可调用工具，context/plan/index 均未执行，未声称索引已刷新。README、AGENTS、ARCHITECTURE、标定第 6 节及验证记录已同步。
+
+## 23. 交接：T10 日志、费用与预算（2026-10-15）
+
+- 负责人：DSH / Flash（实现、自测与文档）。**T10 保留 IN_PROGRESS**：四个完成条件的前三条有离线证据；第四条「实机报告能折算每小时估计用量」的机制已实现并有用例覆盖，但**尚无真实实机报告产出过 `usage`/`hourly`**；本轮未做 ADR-009 独立交叉复核，未调用付费供应商，未启动 live。完整证据、限制与复现命令见 [T10 验证记录](validation/T10_telemetry.md)。
+- 交付：新增 `telemetry/{codes,metrics,cost,budget,report,retention}.py` 并重写 `telemetry/__init__.py`（值净化 + `stats()`）；`telemetry/codes.py` 登记 9 个家族 72 个码，未知码单列不并入家族；CLI 新增 `report`（离线四阶段会话报告）与 `logs`（日志保留，默认只列候选、`--apply` 才删）；`PerceptionConfig.price_as_of` 必填且必须是真实日期；`Usage` 增加 `cost_as_of`/`cost_currency`；离线 `Runtime` 与 live 循环都把 `BUDGET_EXCEEDED` 映射成专属结局码并停止控制器（PAUSED），不算运行时错误；`live_navigation` 报告写 `usage`/`hourly`，`navigation-report` 折叠整批。**无新依赖，锁文件不变。**
+- 完成条件证据（离线，命令与数字见验证记录）：① 一份报告贯穿四段——`report --scenario estop --turns 2 --max-steps 2` 同时给出 `capture_replay/perception/planning/actuation/dialogue` 五阶段样本、`codes.by_code={MANUAL_STOP:8, OK:5, UNKNOWN:1}`、`unknown_codes={}`、`runtime.sequence_digest=ed2cdeb2…`、日志 7 条 0 丢弃；② 白名单九字段 + 值净化（凭据/媒体标记写 `[redacted]`、不透明长串丢弃、非标识符形状丢弃并计数），`tests/unit/test_t10_privacy.py` 16 项含运行期哨兵；③ 预算闸门在调用前（`SessionBudget.authorize` → `ensure_affordable` → `ProviderError("BUDGET_EXCEEDED")`），`tests/unit/test_telemetry_budget.py` 9 项；④ `navigation-report` 对现场目录 `.runtime/t08_live`（只有 dry-run 预览）如实判 5 条 `invalid_files`、`successes=0`、`hourly.reason=NO_DATA…`，**不用 0 冒充数据**。
+- 顺带修复（本轮发现）：`live_navigation/session.py` 的 `summarize_reports()` 在遍历任务时用 `reports = grouped[task.task_id]` 覆盖了外层报告列表，导致 `usage`/`elapsed_ms` 实际只统计最后一个任务（通常为空 → 每小时折算永远 `NO_DATA`）。已改为 `attempts = …`，新增用例 `test_supervised_reports_fold_usage_and_hourly`（3 份带台账与时间戳的实机形状报告 + 1 份 dry-run 预览）断言 `calls=3`、`spent_usd_known=0.3`、`elapsed_ms=90000`、`calls_per_hour=120.0`、`cost_per_hour_usd=None` + `COST_INCOMPLETE`，且预览计入 `invalid_files`。
+- 四项检查（项目 `.venv`，实际执行、退出码均为 0）：`python -m pytest -q` → **789 passed in 64.72s**；`python -m ruff check src tests` → All checks passed!；`python -m ruff format --check src tests` → 111 files already formatted；`python -m pip check` → No broken requirements found.。T10 新增 86 项（codes 8、metrics 8、cost 13、budget 9、report 17、retention 7、privacy 16、CLI 集成 7、live 报告口径 1）。
+- 未验证项：真实供应商计价与账单值（无密钥）、`hourly` 在真实 ≥60 秒会话上的核对、ADR-009 独立复核；价格只有 `USD` 单币种；`EventLog` 队列满（1024 条）时丢弃并计数，丢弃不可回溯。
+- 下一条可执行动作：另一执行者独立复核 T10，重点为「未知不以 0 替代」「预算闸门在调用前」「净化不可绕过」「折算口径诚实」；现场会话在受监管 live 运行之后执行 `python -m vrc_agent navigation-report --report-dir <报告目录>` 核对真实 `usage`/`hourly`（T11 的 20 次任务报告应含 p95、运行成本与失败清单）。
+- GraphFlow：本会话工具可用；收尾执行一次增量索引 `indexedFiles=6`、`indexedSymbols=47`、`indexedReferences=45`，向量回填受 2s 预算限制刷新 256 个（`missing=18259`）——只宣称本次增量已执行，不宣称图谱已完全同步。
+
+## 24. 现场冒烟：T08 live 交付与 T10 报告入口（2026-10-16）
+
+- 负责人：VS Code Copilot 现场会话；只读冒烟，未修改产品代码、测试、配置与锁文件。
+- T08 live 交付（第 22 节）本机复跑：`navigate-live --task G1-1` 只读计划正常（`mode=plan-only`、`sends_live_input=false`；五组到达判据均带 `ENGINEERING_INITIAL_FIELD_CHECK_REQUIRED`，与"现场核对后才可正式批次"的设计一致）；加载器对 `vrchat_home_live_v1.sha256` 的规范化摘要校验通过（`suite_digest=dda1d3b1…` 在配置、sidecar、`navigation-report` 输出三处一致）。
+- 引用完整性抽查：`g1_5`、`g4_5`、`g5_5` 三张到达图的实际 SHA-256 与冻结配置中的 `arrival_reference_sha256` **逐字节一致**。注：`calibration_source_sha256=31c5e598…` 的生成/校验脚本未在交接中注明，复核新增路径时建议要求补充可独立重算的路径。
+- T10 报告入口（第 23 节）本机复跑：`navigation-report --report-dir .runtime/t08_live` 对 5 份 dry-run 预览如实计入 `invalid_files`、`successes=0`、`hourly.reason=NO_DATA…`、20 项 `NOT_RUN`——未用 0 冒充数据，诚实口径保持。
+- 小任务池两项（第 16/19 节：live 启动失败原因、CLI 编码健壮化）已在第 22 节交付中处理，本冒烟不重复验证。
+- 下一条可执行动作：① 新增 live 路径与 T10 的 ADR-009 独立复核（另派执行者）；② 现场前置：确认真实视觉服务/模型/预算、测真实推理时延、核对 G3/G5 工程初值；③ 之后执行冻结顺序的 20 次真实任务（并产出 T10 实机 `usage`/`hourly` 证据）。
+
+## 25. T08 live 路径独立交叉复核（2026-10-16）
+
+- 复核者：DSH / Flash（与本轮 live 装配实现者 Codex / root、以及第 24 节现场冒烟会话均不同执行者）。只读复核：未改产品代码、测试、配置与锁文件；新增 [T08 live 复核记录](validation/T08_live_review.md) 与四个自写探针（`.runtime/verify/v_t08_live_probe_{a,b,c}.py`、`.runtime/verify/v_t08_live_freeze.py`），登记本节与任务表。被复核对象：第 22 节与 [T08 live 验证记录](T08_live.md) 声明的**新增 live 路径**。
+- 结论：用户下达的五条要求（live 安全性 / 旧保护未回退 / 标定·配置·付费与图像授权与命令面 / dry-run 与计划安全 / 验收记录可复查）**全部未能证伪，未发现产品缺陷**。
+- live 安全（探针 B，20 项断言 0 失败）：未 ARM → `ARM_TIMEOUT` 且从未采集；旧帧 → `STALE_OBSERVATION`；复用观测 ID → 首个动作后即失效；伪造证据 → `INVALID_SCENE_EVIDENCE`；越界参数 → `INVALID_ARGS`；缺通行/侧移证据 → `PATH_UNSAFE` / `RECOVERY_UNSAFE`；运动中急停 → `MANUAL_STOP` + 最终 `ESTOP` + 三轴归零；500 ms 租约到期 → `EXPIRED_LEASE` 且**无自动续租**；非 `ControllerProcess` → `ValueError`。静态：`src/vrc_agent/runtime.py:42-43` 的 `ReplayController` 检查原样保留；`live_navigation/` 770 行不含 `socket`/`udp_client`/`Thread`/`subprocess` 引用。
+- 授权与命令面：`live_navigation/session.py:27-60` 的全部门禁在创建控制器（第 72 行）与供应商（第 63 行）之前；`navigate-live --task G1-1` 默认只读计划（`mode=plan-only`、`sends_live_input=false`、五组判据均带 `ENGINEERING_INITIAL_FIELD_CHECK_REQUIRED`）；缺授权 → 退出码 2 `live requires calibration confirmation, paid and image consent`；仍是 fake provider → 退出码 2 `live requires a real image provider and positive explicit budget`；未标定任务 → `unknown calibrated task`。
+- dry-run/计划安全（探针 C，12 项断言 0 失败）：`sendto`/`urlopen`/`SimpleUDPClient` 哨兵零触发，`connect` 只出现 1 次**回环**自管道；线程仅 asyncio 执行器与多进程管道/心跳，无采集/音频/网络工作线程；dry-run 报告固定 `mode=supervised-dry-run`、`sends_live_input=false`。
+- 验收记录可复查：`suite_digest=dda1d3b1…` 在配置派生值、`.sha256` sidecar、加载器自校验与计划输出四处一致（它是对规范化 JSON 计算，文件字节摘要为 `acb0c90d…`）；25 项图像引用对应 23 张 JPEG，全部逐字节一致；5 组 × 4 项 = 20 个唯一任务、阈值与标定记录一致、篡改可检出；`summarize_reports()` 做来源校验、`DUPLICATE_ATTEMPTS`、`threshold_met`（≥16 且无非法文件且每任务恰一次）与 `field_acceptance=REQUIRES_HUMAN_REVIEW`，`verified_success()` 复验数值证据。
+- **F1（解开第 24 节待补项）**：`calibration_source_sha256=31c5e598…` 可独立重算——取 `docs/validation/T08_calibration.md` 以 UTF-8 读入后**起始到 `## 6.` 标题之前**的 13208 字节切片作 SHA-256（`sha256(Path(...).read_text(encoding='utf-8')[: text.index('## 6.')].encode('utf-8'))`），两个探针独立命中。后续冻结流程请沿用并显式记录该规则。
+- 其他观察（非缺陷）：F2 dry-run 运行期存在 asyncio 执行器与多进程管道读线程（授权组件创建）；F3 报告用 `open("x")` 独占创建、同会话重跑同一任务会 `FileExistsError` 而非静默覆盖，现场重跑前需清理旧报告；F4 真实视觉/模型/预算链路、真实推理时延、G3/G5 初值核对与冻结顺序的 20 次真实任务均未执行。
+- 门禁（复核者本机实际执行、退出码均 0）：`python -m pytest -q` → **789 passed in 39.87s**；`ruff check` → `All checks passed!`；`ruff format --check` → `111 files already formatted`；`pip check` → `No broken requirements found.`（与第 23 节一致；第 22 节的 702 passed 是 T10 之前的批次）。
+- 独立性折扣与探针自身错误（7 处：缺 `__main__` 守卫、空 BGRA 缓冲、访问不存在的 `LiveWorld.data`、子进程 `PATH=""`、回环地址被 `str()` 化、漏赋 `self.authority`、过严的零线程断言）逐条记在 [复核记录](validation/T08_live_review.md) 第 5 节。
+- 状态：**T08 保留 IN_PROGRESS**。新增 live 路径已通过独立交叉复核，但 `live_acceptance=UNTESTED`、真实 20 次任务未执行，本次复核不能当作实机成功率。下一条可执行动作：现场前置（确认真实视觉服务/模型/预算、测真实推理时延、核对 G3/G5 工程初值）后按冻结顺序执行 20 次并向 `navigation-report` 归档；同时 T10 的第 23 节末条（实机 `usage`/`hourly` 核对）可在同一批次完成。本次复核未启动 live 控制、未发送输入、未出网、未调用付费供应商。
+- GraphFlow：本会话工具可用，但复核全程依据文档、源码与自写探针；收尾按约定执行一次增量索引（见会话记录），只宣称本次增量已执行，不宣称图谱已完全同步。
+
+## 26. T10 独立复核退回（2026-10-16）
+
+- 复核者：Codex / root；实现者：DSH / Flash。对照第 23 节与 [T10 自测记录](validation/T10_telemetry.md) 审查源码并自建载荷，**发现反例，复核不通过，T10 保留 IN_PROGRESS**。详细位置、实际输出、影响与修正要求见 [T10 独立复核记录](validation/T10_review.md)。本轮未改产品源码、项目测试、配置与锁文件。
+- 独立探针：`.runtime/verify/v_t10_review.py`，结果 `.runtime/verify/v_t10_review.json`；23 项检查，7 项符合要求、16 项反例，归并为 R1–R5。未导入实现者测试/fixture，使用合成凭据与内存 HTTP，无真实密钥、真实媒体、付费请求或 live 输入。脚本退出码 0 表示完成收集，不表示反例消失。
+- **R1 / P1，净化可绕过**：允许字段中的合成 `ghp_` 前缀令牌、URL-safe base64 原样落盘；正则 `.match()` 还允许尾部换行。未知字段虽丢弃，却未增加 rejected，违反第 23 节声明。需按字段限制类型/值、全串匹配，并补编码载荷和统计回归。
+- **R2 / P1，重试预算/费用失真**：首次 HTTP 超时后成功，台账只记一次且 `unknown_cost_calls=0/cost_complete=true`；重试间余额耗尽的故障注入得到 `ensure_affordable → http → http`，第二次未检查预算。需每次请求前闸门、每次可能计费失败独立入账。T08 live 当前强制不重试，不能把本项误报为实机已发生超支。
+- **R3 / P2，预算包装层未接线**：离线 report 与 live 均传 `budget.ledger`，没有调用 SessionBudget.authorize/record；普通下一次 infer 虽被底层正确拒绝，快照仍 `exhausted=false/pause_reason=null/estimated_calls=0`。需统一授权/入账接口或真实推导快照，并验证两条 runtime 的耗尽暂停与无额外发送。
+- **R4 / P1，未知变成零/完整**：SessionRecorder 无预算但有时长时把 `usage=null` 折成完整零费率；空 usage、显式 `cost_complete=false` 在聚合后可变为 true/0；缺一份 usage 时 token 完整性仍为 true。需区分合法零台账与缺失台账，保留未知和来源完整性，缺数据输出 NO_DATA。
+- **R5 / P2，invalid_files 与时长覆盖不完整**：畸形 usage 数值在文件级捕获之外抛异常；混合有/无时区时间戳抛 TypeError；坏开始时间静默漏计时长但保留用量分子。需逐文件校验、计数无效来源，并保持费率分子/分母覆盖一致。
+- 已通过的对照：基础价格/usage 缺失返回 unknown；直接无数据 hourly 返回 NO_DATA；普通串行余额耗尽后无下一次 HTTP；Bearer 标记净化、非标量丢弃；dry-run 来源计入 invalid_files。离线/live 的 BUDGET_EXCEEDED 暂停分支有源码证据，本轮未另做两条循环的独立端到端预算试验。
+- 门禁复跑（项目 `.venv`，实际执行、退出码均为 0）：`python -m pytest -q` → **789 passed in 38.88s**；`python -m ruff check src tests` → All checks passed!；`python -m ruff format --check src tests` → 111 files already formatted；`python -m pip check` → No broken requirements found.。现有测试没有覆盖上述反例，不能用全绿替代复核结论。
+- 下一条可执行动作：实现方修正 R1–R5、补产品回归，再交不同执行者复核。仍需真实实机报告的 usage/hourly 核对；当前没有真实账单、≥60 秒现场折算或 T08 固定 20 次验收证据。本轮只交复核，不静默修产品后自认通过。
+- GraphFlow：当前工具列表无可调用 GraphFlow，context/plan/index 未执行，未宣称图谱更新。独立性限制：同机同工作树，复核者曾实现 T08 基础装配，但本次 T10 变更由另一执行者完成。
+
+## 27. T10 复核退回修正（R1–R5，2026-10-16）
+
+- 负责人：DSH / Flash（修正与回归）；退回依据：[第 26 节](#26-t10-独立复核退回2026-10-16) 与 [T10 独立复核记录](validation/T10_review.md)。**T10 保留 IN_PROGRESS**：修正件已自测，但必须再由另一执行者复核；真实实机 `usage`/`hourly` 证据仍缺。
+- 修正内容（逐条对应复核条目，明细与证据见 [T10 验证记录](validation/T10_telemetry.md) 第 7 节）：
+  - **R1 净化**：`telemetry/__init__.py` 改为逐字段类型/取值限定（`FIELD_KINDS`）+ 全串 `fullmatch` + 拒绝空白/控制字符 + 常见凭据前缀 `TOKEN_PREFIXES` 与 32 位以上不透明串识别；未知字段计入 `rejected`，并新增 `rejected_reasons`/`redacted_reasons` 便于定位调用方越界。
+  - **R2 重试计费**：`openai_compat.infer` 的每次 HTTP 尝试前重新授权；transport/解析失败按「已发出且可能计费」独立入账；成功入账移到 attempt 内；预调用拒绝不计已发送/计费。
+  - **R3 预算接线**：新增 `providers/base.py::Accounting` 协议；`cli.py` 的 `report` 与 `live_navigation/session.py` 改传 `accounting=budget`，`exhausted`/`pause_reason`/`estimated_calls` 由此来自真实授权与入账。
+  - **R4 未知不折零**：无台账的会话输出 `usage=null` + `NO_DATA` 折算；`aggregate_usage` 区分合法零台账与空/缺失/畸形；`usage_defect` 把缺调用数/图片数的台账判为损坏。
+  - **R5 逐文件校验与覆盖一致**：`summarize_reports` 逐文件校验时间戳（必须带时区、不得倒序）与台账形状，问题计入 `invalid_files`/`invalid_reasons` 且不中断整批；每小时折算的分子与分母同源（`basis_ms_with_usage`），并新增 `coverage`（含 `reports_invalid_files`）与完整性标志。
+- 新增/更新回归：`tests/unit/test_t10_review_regressions.py`（23 项，`r1_`–`r5_` 对齐复核条目）、`tests/integration/test_supervised_navigation.py`（受监管 dry-run 预算耗尽暂停）、`tests/unit/test_live_navigation.py`（live 组合根接线）、`tests/unit/test_providers_openai_compat.py` 与 `tests/unit/test_live_navigation.py` 的既有期望按新口径更新。
+- 四项检查（项目 `.venv`，实际执行、退出码均 0）：`python -m pytest -q` → **816 passed in 40.74s**；`python -m ruff check src tests` → All checks passed!；`python -m ruff format --check src tests` → `112 files already formatted`；`python -m pip check` → `No broken requirements found.`（第 26 节退回时的基线为 789 passed）。
+- 复现：`.venv/Scripts/python.exe -m pytest tests/unit/test_t10_review_regressions.py tests/integration/test_supervised_navigation.py -q`。
+- 边界：本轮未改配置/锁文件/价格表/live 门禁，未调用付费供应商、未启动 live、未发送输入；`T08` 现场 20 次任务与 T10 实机折算证据仍未产出。
+- 下一条可执行动作：另派执行者按第 26 节 R1–R5 独立复核本次修正（不得以「门禁全绿」替代复核）；随后在同一现场批次用 `navigation-report` 核对真实 `usage`/`hourly`。
+
+## 28. T10 修正件独立复核：再次退回（2026-10-16）
+
+- 复核者 Codex / root；修正者 DSH / Flash。对照第 26/27 节，自建探针逐项尝试证伪；**R2/R3 在本轮范围内未能证伪，R1/R4/R5 仍有反例，T10 保留 IN_PROGRESS**。完整证据与修正要求见 [修正件复核记录](validation/T10_revision_review.md)。未改产品代码、项目测试、配置或锁文件。
+- 独立工件：`.runtime/verify/v_t10_revision.py` 及 `.json`；26 项，18 项符合要求、8 项反例。使用合成数据、临时文件、内存 HTTP，不导入实现者测试/fixture，不出网、不付费、不启动 live。脚本退出码 0 仅表示完成收集。
+- 已确认修复：原 ghp\_、原 URL-safe base64、尾换行/NUL、普通未知字段计数；R2 超时后成功分两次入账且保留未知费用、重试间耗尽拒绝、预调用拒绝 calls=0/HTTP=0；R3 accounting 接线后耗尽快照正确且没有额外发送；R4 空/缺失/畸形台账的基础 NO_DATA；R5 无时区/倒序/非法时间/字符串计数/NaN 均逐文件隔离。
+- **R1a/P1**：未知字段名是合成令牌时，rejected_reasons 原样保留该 key；CLI 将 stats 写进报告，形成新的泄露出口。应使用固定原因码，不拼入原始未知 key。
+- **R1b/P2**：44 字符全小写加下划线的 URL-safe base64 仍原样落盘，大小写启发式不是安全证明。需收紧字段语义或如实限定保证范围。
+- **R4/P1**：字段齐全但 cost_complete/tokens_complete=false 的来源仍被聚合为 true；缺 unknown 两项计数仍默认 0 并称完整。需保守合并来源标志并校验相关必需字段。
+- **R5a/P1**：有效 60 秒/1 次/0.1 USD 报告 + 缺失或零时长/1 次/0.1 USD 报告，得到 120 次/小时、12 USD/小时且 hourly.coverage.complete=true。实际配对来源只能支持 60 次/小时、6 USD/小时或 NO_DATA。需费率分子分母使用同一有效配对集合。
+- **R5b/P2**：金额 10\*\*400 导致 float 转换 OverflowError，未计 invalid_files 而中断整批。需逐文件隔离数值溢出。
+- 四项门禁实跑均退出 0：pytest **816 passed in 39.87s**；ruff check All checks passed!；ruff format --check 112 files already formatted；pip check No broken requirements found.。上述 8 项反例说明门禁全绿不代表复核通过。
+- 下一步：实现方修正上述剩余项并补回归，再独立复核；真实实机 usage/hourly 证据仍缺，不能转 DONE。R3 本轮独立动态检查到供应商/预算层，控制循环暂停用例随全量测试运行，不称为独立实机验证。GraphFlow 当前不可调用，context/plan/index 未执行。
+
+## 29. T10 修正件复核退回修正（R1a/R1b/R4/R5a/R5b，2026-10-16）
+
+- 修正者 DSH / Flash；对照第 28 节与[修正件复核记录](validation/T10_revision_review.md)。复核第 28 节已确认 R2/R3 在本轮范围内未能证伪，本轮只改 R1/R4/R5 的残余反例；**未改**配置、锁文件、价格表与 live 门禁（`navigation_entry` 的授权链一字未动）。
+- **R1a 固定原因码**（`src/vrc_agent/telemetry/__init__.py`）：未知字段名不再拼进原因串，`sanitize_field` 一律返回固定码 `unknown_field`，`emit` 对未登记 key 折叠成固定标签 `unregistered_field`。日志与 CLI 报告里的 `rejected_reasons`/`redacted_reasons` 只含「已登记字段名 + 固定原因码」，不再有回显外部输入的出口。
+- **R1b 收紧字段语义**：新增字段语义表 `FIELD_KINDS`（`event`=事件名、`action_id`=32 位十六进制、`status`/`state`/`reason_code`=闭集枚举、`mode`/`operation`=词形、`pid`/`count`=整数、`value`=数值或 OSC 地址），非标量/错类型/闭集外的值一律按 `not_<kind>`/`unregistered_value` 拒绝；全串匹配（`fullmatch`），不透明长串判定补上「大小写混用且含数字、长度 ≥24」的形状规则。模块 docstring 同时**如实限定保证范围**：这是形状与凭据模式的净化，不是密码学证明；44 字符全小写 URL-safe base64 在逐字段语义下已无字段可落（回归逐字段验证 9 个允许字段全部拒绝）。
+- **R4 保守合并来源标志**：`aggregate_usage` 只在「每份都合法、没有未知计费/未知 token、且来源自带的 `cost_complete`/`tokens_complete` 均为真」时才给完整标志——来源说 `False` 的台账不会在聚合后被升级成 `True`；`usage_defect` 增加 `unknown_cost_calls`/`unknown_token_calls`/`cost_complete` 的必填校验（缺 `cost_complete` 无法判断完整性，算损坏）；`SessionRecorder.build` 改走同一校验，损坏台账只出 `NO_DATA`（并在 `warnings` 里点名缺陷），不再折成「零用量、零费用」的完整折算。
+- **R5a 分子分母同源**：`aggregate_usage` 新增配对集合 `paired_*`（`reports_paired`/`reports_unpaired_duration`/`paired_basis_ms`/`paired_calls` 等）——只有「台账合法**且**时长可测」的报告才进折算，缺时长的报告既不进分子也不进分母；`hourly_from_usage` 的汇总分支只读这一组数，`coverage` 如实给出配对与未配对份数。反例中的「60 秒/1 次 + 零时长/1 次」现在得到 `NO_DATA`/只按配对份数折算，不再出现 120 次/小时。
+- **R5b 逐文件隔离**：`summarize_reports` 的文件级 `except` 改为兜住全部异常（含巨数导致的 `OverflowError`），原因串单行化并截断到 200 字符；`_nonneg_int`/`_nonneg_usd` 拒绝超过 2^53 的巨型整数，`float()` 溢出转成无效值而不是打断整批。
+- 新增回归：`tests/unit/test_t10_review_regressions.py` 现 36 个测试函数（45 个收集项），按 `r1a/r1b/r4/r5` 分组覆盖上述每一条反例（含逐字段落盘矩阵、缺完整性标志、来源标志不被升级、巨数金额/计数、无时长报告的费率配对）；既有回归与期望同步更新（`tests/unit/test_telemetry_report.py`、`tests/unit/test_live_navigation.py` 的台账夹具补上完整性标志与时间戳）。
+- 四项门禁实跑（项目 `.venv`，退出码均 0）：`python -m pytest -q` → **837 passed in 43.18s**；`python -m ruff check src tests` → All checks passed!；`python -m ruff format --check src tests` → 112 files already formatted；`python -m pip check` → No broken requirements found.。
+- 复现：`python -m pytest tests/unit/test_t10_review_regressions.py -q`、`python -m vrc_agent report --scenario estop --turns 2`、`python -m vrc_agent logs --keep-days 14`。
+- 边界与下一条动作：本轮未调用付费供应商、未启动 live、未发送任何输入，也未改动真实账单口径；**修正件必须再由另一执行者独立复核**（同机同工作树，独立性依赖不同执行者），复核通过前 T10 不得转 DONE。真实实机 `usage`/`hourly` 证据仍缺（需 T08 现场 20 次任务 + 真实账单核对），本机无法自行补齐。
+
+## 30. T10 第三轮修正件复核：原反例通过，扩展反例退回（2026-10-16）
+
+- 复核者 Codex / root；修正者 DSH / Flash。指定原反例全部通过，但扩展检查发现 R4c/R1c，**整项复核仍退回，T10 保留 IN_PROGRESS**。详见 [第三轮复核记录](validation/T10_round3_review.md)。未改产品代码、项目测试、配置/锁文件；无网络、付费或 live 输入。
+- 独立探针 `.runtime/verify/v_t10_round3.py` / `.json`：24 项，22 项符合要求、2 项反例。复用复核者的数据构造器，不导入实现者测试；历史证据保留。脚本退出 0 表示收集成功，不是通过。
+- 已确认：未知/令牌字段名全部折为固定 unknown_field 码；44 字符全小写 URL-safe base64 九字段全拒；来源 false 保留；缺 cost_complete/unknown 计数判损坏→NO_DATA；60s + 零/缺时长按一份配对折算为 60 次/小时且 coverage 不完整；10\*\*400 金额/计数逐文件隔离，原因 detail 单行且 ≤200 字符。
+- **R4c/P1**：usage_defect 必填列表漏 spent_usd_known，删除金额字段仍得到 reports_invalid_usage=0、cost_complete=true、cost_per_hour_usd=0.0。须补金额必填及合法零金额对照回归。
+- **R1c/P2**：非标量拒绝原因仍拼入任意 Python 类名；以合成令牌为动态类名可进入 rejected_reasons。未知字段名路径已修好，但“只允许固定码”整体声明仍不成立。须固定非标量原因，且修正文档对 value/operation 短串接受范围的混用。此为 Python 调用边界测试，不声称远端 JSON 可创建类或发生实际密钥泄露。
+- 四项门禁均退出 0：pytest **837 passed in 42.80s**；ruff check All checks passed!；ruff format --check 112 files already formatted；pip check No broken requirements found.。不能以门禁替代反例结论。
+- 下一步：实现方修正 R4c/R1c、同步 docstring 并补回归后再独立复核。实机 usage/hourly 证据仍待补，不转 DONE。GraphFlow 不可调用，context/plan/index 未执行。
+
+## 31. T10 第三轮复核退回修正（R4c/R1c，2026-10-16）
+
+- 修正者 DSH / Flash，对照第 30 节与 [第三轮复核记录](validation/T10_round3_review.md)。本轮只处理该轮剩余的两项反例与相关文案，未改配置、锁文件、价格表与 live 门禁。
+- **R4c / P1（缺金额仍被判完整）**：`usage_defect` 的必填列表补 `spent_usd_known`——缺金额字段的台账判损坏（单份报告走 `reports_invalid_usage`、逐文件汇总进 `invalid_files`），费率与完整性一律 `NO_DATA`/`false`；**合法零金额**（`spent_usd_known=0.0` 且 `cost_complete=true`）仍然完整可折算。`aggregate_usage` 里 `_nonneg_usd(...) or 0.0` 的折零写法改为「已通过校验的必填字段直取」，不再用 `or 0`/`or 0.0` 掩盖缺失。
+- **R1c / P2（任意类名进原因）**：`_classify` 的非标量分支只回**登记过的内建容器类别**（新增 `NON_SCALAR_KINDS`：`dict`/`list`/`tuple`/`set`/`frozenset`/`bytes`/`bytearray`/`memoryview`），其余一律 `non_scalar:other`，不再拼接 `type(value).__name__`（合成动态类名不再产生新技术字符串）。同一「只允许固定码」原则顺带用到报表层：`usage_defect` 的 `by_provider` 缺陷改用序号描述、不回显供应商名；`aggregate_usage` 的会话标签只保留契约 `new_id()` 的十六进制形状（新增 `SESSION_LABEL = re.compile(r"[0-9a-f]{32}")`），其余写 `unknown`。
+- **文案**：三处 docstring 按实际保证范围改写——原因只含「登记类别或 `other`」；`operation`/`mode` 是词形短串、`value` 只接受数值或 OSC 地址，两者分开描述；「拒绝的是不符合字段语义与形状的输入，不保证识别真实来源或信息含义」。
+- 回归（`tests/unit/test_t10_review_regressions.py`，现 **51 个收集项**，新增 6 项）：`test_r1c_a_dynamic_class_name_never_reaches_the_reason_codes`、`test_r1c_non_scalar_reasons_are_a_closed_set_of_registered_builtins`、`test_r1c_report_layer_reasons_do_not_echo_untrusted_names`、`test_r4_c_a_ledger_missing_the_amount_is_invalid_not_zero`、`test_r4_c_a_legitimate_zero_amount_is_still_complete`、`test_r4_c_a_mixed_batch_with_one_missing_amount_is_not_complete`。
+- 独立证据重跑：复核者探针 `.runtime/verify/v_t10_round3.py` 在修正后由修正者重跑 → **24 项全过（`passed: 24 / failed: 0`）**。注意该脚本会把结果写回 `.runtime/verify/v_t10_round3.json`，故该文件现为修正后结果；复核者当时的 22 过 2 反例结论以第 30 节与复核记录文档为准。该项只是佐证，不替代独立复核。
+- 四项检查（项目 `.venv`，实际执行、退出码均 0）：`python -m pytest -q` → **843 passed in 40.88s**；`python -m ruff check src tests` → All checks passed!；`python -m ruff format --check src tests` → `112 files already formatted`；`python -m pip check` → `No broken requirements found.`。
+- 复现：`python -m pytest tests/unit/test_t10_review_regressions.py -q` → **51 passed**；`python -m pytest -q` → 843 passed。
+- 边界：本轮未调用付费供应商、未启动 live、未发送输入，未改真实账单口径；离线夹具沿用本版本快照必写的完整性标志，因此更早版本的手工台账仍会被判损坏（有意的严格化）。
+- 仍未验证：真实实机报告的 `usage`/`hourly` 核对；真实账单与 ≥60 秒现场折算。
+- 下一条可执行动作：由**另一执行者**独立复核本轮修正（对照第 30 节 R4c/R1c 与本节回归）；复核前 T10 保持 IN_PROGRESS，不以四项门禁或探针重跑替代复核结论。GraphFlow：本轮未调用（本会话工具列表中无 GraphFlow），未宣称图谱更新。
+
+## 32. T10 第四轮修正件独立复核通过（2026-10-16，仅离线范围）
+
+- 复核者 Codex / root；修正者 DSH / Flash。对照第 30/31 节，**R4c/R1c 与重建的上轮扩展反例均未能证伪，离线修正复核通过**。完整证据、静态零默认值审查及限制见 [第四轮复核记录](validation/T10_round4_review.md)。T10 仍为 IN_PROGRESS，真实实机折算证据待补。
+- 独立新探针 `.runtime/verify/v_t10_round4_independent.py` / `.json`：**38 项全过，failed=0，退出 0**。不读取已被覆盖的第三轮 JSON、不导入旧探针或实现者测试；全新合成载荷与临时目录。输出独占创建，避免静默覆盖；脚本与结果摘要记录在复核文档。第 30 节历史结论仍保留，以当时文档为准。
+- R4c：缺金额→invalid/NO_DATA，合法零金额仍完整；混合批次一缺即不完整。动态另测 None/布尔/字符串/负数/NaN/Inf/巨数；来源 false 保留。静态确认仍存在少量 or 0 与等价防御分支，但它们位于已校验值/已知费用或覆盖计数/无时长分支，本轮未发现未知金额被折成完整零费用。
+- R1c：自建令牌、控制字符、Unicode、超长、伪装内建名的动态类、dict 子类及禁止读取 **name** 的元类对象，均只得到 non_scalar:other；八种登记容器只回登记码。未知字段名不回声；报表层非法 provider/session 名称也不回声。docstring 已按 operation/mode 与 value 的不同语义如实限界。
+- 防回归：44 字符全小写 URL-safe base64 九字段全拒；来源 false、缺完整性/unknown 字段与缺金额保持拒绝；60 秒 + 零/缺时长仅一份配对、调用率 60/小时、coverage 不完整；巨数金额/调用数/token/图像数逐文件隔离；异常 detail 单行且 ≤200 字符。
+- 四项门禁实际执行均退出 0：pytest **843 passed in 41.38s**；ruff check All checks passed!；ruff format --check 112 files already formatted；pip check No broken requirements found.。独立探针而非门禁全绿构成此次复核结论。
+- 下一条可执行动作：现场受监管会话产出真实 usage/hourly，核对时长、未知费用与账单/估算口径后补验收；证据齐备前不转 DONE。本轮未改产品代码/测试/配置/锁文件，未出网、未付费、未启动 live。GraphFlow 不可调用，context/plan/index 未执行。
+
+## 33. 现场实测：DeepSeek 云端视觉时延与 live 冻结上限结构性冲突（2026-10-16，现场会话；未改产品代码）
+
+- 用户选定方案 A 云端：DeepSeek（OpenAI 兼容）。该服务中仅 `deepseek-flash` 支持图像（`deepseek-v4-pro` 不支持）；`base_url=https://api.deepseek.com`。密钥只在本机 User 级环境变量 `DEEPSEEK_API_KEY`（已设置），未进任何文件、配置或报告。
+- 实测（探针 `.runtime/tmp/ds_latency_probe.py`，只读环境变量、不含密钥；第二轮原始输出存 `.runtime/tmp/ds_latency_probe_20261016.txt`；两轮共 12 次真实调用，约 $0.01）：
+  - 鉴权/连通正常（文本最小请求 ~0.3–0.5s；其中一次 400 是探针提示词未含 "json" 触发 json_object 校验，属探针缺陷，无产品含义）。
+  - 单张 2160×1440 标定截图（560KB JPEG，1188 prompt tokens）：思考关闭 3399/3398/3853/3660ms（中位约 3.5s）；供应商默认（思考开启，产品当前实际发送形态）5485/3527/7198/7947ms，且后两次 reasoning 吃满 `max_tokens=1024`、`finish_reason=length`、content 为空——产品会判 `MODEL_MALFORMED_RESULT`（空内容）或 `MODEL_LATE`（超时），两种都失败；最快形态下界（思考关闭 + `detail:low` + max_tokens=200）2226/2186ms，仍是上限的 ≥2.2 倍。
+- 冲突（硬阻断，非调参可解）：live 会话语义把单次推理截到 ≤1000ms（`live_navigation/session.py` 第 65 行 `min(1000, ...)`；`runtime.py` 第 42 行校验 1 ≤ inference_ms ≤ 1000），超时即 `RuntimeHalt("MODEL_LATE")`、不重试；推理后观测年龄须 <1500ms；且 `run()` 每个动作后都要求新观测 + 新推理。ARCHITECTURE 第 272 行明文「不放宽 1500ms 观测上限以迁就慢模型」，现场不得绕开。
+- 结论：按现冻结设计 + 云端 DeepSeek，任务在**第一次观测**即中止（0 动作），20 次批次无法达标（0/20），故未启动任何 live/ARM/输入；T10 实机 usage/hourly 证据同样继续阻塞。
+- 边界：未改产品代码/测试/安全阈值/锁文件；未启动 live 控制；未 ARM；未发送输入。`configs/navigation-live.toml` 已建（deepseek-flash / `DEEPSEEK_API_KEY` / 预算 1.0 每任务 / 峰值价 0.30/1.20、price_as_of 2026-10-16；文件内注明修订前不可用于完成任务）。现场细节追加在 `docs/validation/T08_live.md`。
+- 下一步（需用户决策，属产品范围，另派执行者 + ADR-009 复核）：① 决定是否修订 live 设计以承载秒级云端推理——候选方向为「推理异步化 + 本地帧稳定性校验」（推理返回后比对当前帧与推理帧一致才动作，适配私有静态世界），并相应重审 1000ms 截断、30s 任务时限、40 动作额度与观测年龄；② 若不修订，现场批次无法进行（本机 Iris Xe 无加速、云端各供应商同为秒级，均过不了 1000ms）。修订 + 独立复核后重新冻结、再按原流程执行 20 次（T08 验收与 T10 实机证据同批产出）。
+- 2026-10-16 更新：用户选定方向 A；修订任务已起草为第 34 节，待指派执行者。
+- GraphFlow 无可调用工具；context/plan/index 未执行。
+
+## 34. 待派发任务：T08 live 设计修订（方向 A：承载秒级云端推理）（2026-10-16，现场会话起草）
+
+**状态：IN_PROGRESS；负责人 Codex / root（2026-10-16 用户领取）。实现者与复核者必须是不同执行者（ADR-009）。本任务只做设计、实现与离线验证：不启动 live、不调用付费接口、不发送输入、不改冻结世界配置；现场批次仍由现场会话在复核通过后执行。**
+
+### 背景与不可移动的前提
+
+- 第 33 节与 `docs/validation/T08_live.md` 附录：云端 DeepSeek `deepseek-flash` 单张 2160×1440 实测 2.2–7.9s（最快形态 2.2s，思考关闭典型 ~3.4s）。供应商默认思考模式会吃满 `max_tokens=1024` 产出空 content（判 MALFORMED）；`thinking:{"type":"disabled"}` 经探针验证有效（reasoning=0）。
+- 现冻结 live 将单次推理硬截到 ≤1000ms（`live_navigation/session.py` 第 65 行、`runtime.py` 第 42 行），超时 `MODEL_LATE` 不重试；`run()` 每个动作后都要求新观测 + 新推理 → 云端必然 0/20。
+- ARCHITECTURE 第 272 行立场保留：**不得用「放宽无条件新鲜度阈值」充当方案**；新鲜度必须被“本机可验证的稳定性证据”替换，而不是被取消。
+
+### 目标
+
+使 live 受监管导航能在单次推理 2–4 秒级（云端）下安全完成冻结的 20 项任务，且既有控制安全不变量全部保持。
+
+### 要求（R1–R6，全部必须）
+
+- **R1 慢推理承载与帧稳定性证据**：把「推理预算」与「观测新鲜度」解耦。每个用于动作的推理结果必须附带本机可验证的证据：推理所用帧与拟动作时刻的当前帧“一致”（度量、阈值、证据格式、连续/离散检查点由实现者设计并论证）。对抗性场景必须覆盖：HUD/时钟/麦克风图标等动态 UI、其他角色或物体进入画面、便携镜激活、黑屏、画面稳定但语义不可靠（后者属既有信任边界，不要求本任务解决，但要如实限界）。对 HUD 噪声要有鲁棒性或明确的排除区域。**若稳定性判据需要现场标定量，必须走既有版本化冻结机制（新配置版本 + 摘要 + 加载校验），禁止运行时可调阈值。**
+- **R2 安全不变量保持**：推理期间急停/暂停仍在下一轮询（≤30ms 级）内生效并取消在途调用；租约/epoch/session/控制权检查频率不变；动作仍为单轴 200ms 白名单；无自动 ARM/复位；F8/F9、watchdog、到期归零、`ReplayController` 类型检查、管道授权全部不动；CLI 契约与现场流程不变（一命令一任务、独占报告文件、`--confirm-calibration --allow-paid --send-images`）。
+- **R3 供应商请求形态**：支持显式关闭思考模式（DeepSeek `thinking:{"type":"disabled"}`）；只允许单一类型化字段（如 `disable_thinking: bool`），**禁止任意 extra_body 透传**；测试断言原始请求体的包含/不包含；空 content 与 `finish_reason=length` 的失败语义保持可判且与现有错误码一致。
+- **R4 参数与报告**：推理预算、任务时限、动作额度（现 1000ms / 30s / 40）如需变更：在配置中显式化、在单次报告中记录、在文档中给出安全论证（为什么该时限与 R1 证据组合仍然安全）。`MODEL_LATE` 等结局码语义若改变，不得静默复用旧含义。
+- **R5 T10 合约**：`usage`/`hourly`/`navigation-report` 既有校验语义不被破坏；新增证据字段进入单次报告与汇总校验（坏样本整份计数规则不变）。
+- **R6 测试与门禁**：可控时钟 + 内存 HTTP stub 覆盖 3.5s 级推理的全部路径（正常、超时、空内容、急停在途、控制权/租约在途失效、画面变化拒绝、HUD 噪声不误拒、稳定性判据拒绝即重推理路径）；四项门禁（pytest / ruff check / ruff format --check / pip check）退出 0。
+
+### 非目标
+
+- 不改冻结世界配置 `vrchat_home_live_v1.json` 的任务清单、判据阈值与摘要（稳定性判据如需新标定量：产出新版本 + 新摘要，旧版本保留，是否换版由用户决定）。
+- 不启动 live、不 ARM、不调用付费接口、不发送输入；测试素材可用 `.runtime/t08_calib/` 静态截图与合成帧，但不得宣称为实机验证。
+- 不扩动作能力、不改控制进程与热键、不动 T00–T07 行为。
+
+### 交付物与流程
+
+- 代码 + 测试；`docs/validation/T08_live.md` 追加本轮实现记录；`docs/TASKS.md` 新增交付节；另附一份 `supervised-dry-run` 全流程报告（体现新证据字段）供复核。
+- 交付后由**另一执行者**独立复核（评审点至少含：稳定性判据的对抗性、参数安全论证、请求体证据、安全不变量回归）。复核通过后由现场会话重新执行：时延复测 →（如需）稳定性判据现场标定 → 20 次批次（T08 验收与 T10 实机证据同批）。
+- **若设计论证发现方向 A 不可行，或需要修改任何既有安全边界：停止并返回决策点（证据 + 替代方案），不得静默改设计或放宽阈值。**
+- GraphFlow 视执行者环境而定；不可用则如实说明，不得伪造 context/plan/index 结果。
+
+## 35. T08 方向 A 离线候选实现交接（2026-10-16，Codex / root）
+
+- 对应第 34 节；**离线实现和自测已交付，待另一执行者独立复核。T08 保持 IN_PROGRESS，真实 20 次任务及 T10 实机折算仍未完成。** 设计、参数论证、限制和复现见 [T08_direction_A.md](validation/T08_direction_A.md)；ARCHITECTURE 与 T08_live 已同步。
+- 新增 `live_navigation/stable_runtime.py`、`stability.py`、`stability_report.py` 和独立 JSON/sha256 策略。模型原始证据与新采集帧通过逐像素 RGB 比较关联，保留原始观测；派生新场景、规划前再采集复验，失败有限重推理。原控制进程、热键、管道授权、ReplayController 检查及世界任务文件未改。单轴 200ms、动作结束归零、1500ms 观测时效与租约均保留。
+- 新策略根级选择字段 `navigation_design="stable-inference-v1"`，默认 legacy；候选策略显式记录 8000ms 推理、30s 任务、40 动作、最多三次重推理。新超时码 INFERENCE_TIMEOUT，不改变旧路径 MODEL_LATE。策略版本 `local-rgb-stability-v1-candidate`，摘要 `e9350468054d0196419ad345b5220762b224367d3014583a96623262ee994e13`。世界摘要仍为 `dda1d3b1dce2605df37a9f4cf4a68cea5e1e639e7037351fb0c4b54bdfb7e335`。
+- **现场标定前硬拒绝 live**：候选遮罩 `[0,1296,86,1440)` 只是离线工程初值，不宣称它覆盖真实 HUD；它会忽略该区域变化。故状态为 REQUIRES_FIELD_CALIBRATION，生产入口及 StableNavigation 均拒绝候选 live；旧 confirm-calibration 参数不能绕过。先独立复核、现场确认遮罩，再由用户决定采用新冻结版本；不能原位改候选状态/摘要假装完成标定。实际 `configs/navigation-live.toml` 未修改。30 秒租约可能限制秒级推理可执行步数，不承诺 ≥16/20；若需改变租约，另返用户决策。
+- R3：`PerceptionConfig.disable_thinking` 严格 bool，供应商仅发送固定 thinking disabled 对象；False 不发送，没有 extra_body。空 content/length 的错误码不变。新装配在线程准备 PNG/请求体以维持授权轮询。取消等待后已发送请求记一笔未知费用；**不承诺终止 urllib 阻塞线程或远端计费**，迟到结果不能再控制，也不重复入账。
+- R5：新报告 schema_version=2，记录完整策略、原始 inference_source、派生 observation、逐次 stability_proofs。汇总复验来源/时间/摘要/派生实体和动作绑定，坏证据整份计 invalid_files。T10 台账与折算函数未改，未知费用和不完整性保留；旧 schema=1 维持旧验证口径。
+- 新增 `tests/integration/test_stable_navigation.py` **22 项**：可控时钟+内存 HTTP 的 3.5 秒正常导航、超时/空内容、急停/暂停/epoch/lease 失效、画面变化/黑屏、HUD 排除区域变化、重推理、规划前突变、稳定但不可信场景、单像素物体/角色与大片镜面变化、证据篡改和整份拒绝、候选 live 拒绝、实际请求体和取消未知费用。另用真实 spawn 子进程/IPC 完成 dry-run 并核对动作结束归零。素材与模型响应均为合成，不是实机成功证据。
+- 独占交付报告：`.runtime/verify/t08_direction_a-a04973d85cc840278f5c390a078d84eb.json`，SHA256 `3d9658923c10046b741c90b3acb2f19090681d60b2d212203aa79dc5857c759f`。已重新加载并通过证据校验；mode=supervised-dry-run、SUCCESS、2 动作、5 条 proof、3 次内存 HTTP 调用、cost_complete=false；控制子进程 pid=2724。未知价格未折零。本轮先前测试生成的其他报告保留，以上为指定交付工件。
+- 四项门禁（项目 `.venv`，最终产品代码版本，均退出 0）：`python -m pytest -q` → **865 passed in 47.40s**；`python -m ruff check src tests` → All checks passed!；`python -m ruff format --check src tests` → **116 files already formatted**；`python -m pip check` → No broken requirements found.。
+- 下一条动作：另一执行者按 ADR-009 独立复核本节，重点证伪遮罩盲区与离散时间窗口、派生证据链、任务/租约容量、协作取消和未知计费、旧路径隔离；通过后进入现场稳定性标定与用户选版，再复测真实时延和固定 20 次任务。不能把本轮自测写成独立复核或现场验收。
+- 本轮未读取密钥、未调用付费接口、未启动 live、未发送真实输入；测试中的 arm 仅作用于 dry-run 控制器或内存 core。GraphFlow 工具不可调用，context/plan/index 未执行。工作目录没有 `.git`，未创建提交，未声称已完成 Git diff 审核。
+
+## 36. 现场冒烟：第 35 节交付的现场一致性与候选 live 硬拒绝（2026-10-16，现场会话；非复核）
+
+- 现场会话对第 35 节离线候选交付做了冒烟核对（不构成 ADR-009 复核结论，复核仍待另一执行者）：
+  - 四项门禁实跑均退出 0：pytest **865 passed in 57.97s**（现场机重跑耗时；实现者记录 47.40s）；ruff check All checks passed!；ruff format --check 116 files already formatted；pip check No broken requirements found.。
+  - 只读计划 `navigate-live --task G1-1`：`suite_digest=dda1d3b1…`（冻结世界摘要未变）、`sends_live_input=false`。
+  - 工件哈希逐位一致：交付报告 `.runtime/verify/t08_direction_a-a04973d85cc840278f5c390a078d84eb.json` = `3D9658923C10046B741C90B3ACB2F19090681D60B2D212203AA79DC5857C759F`；策略文件 `stability_v1.json` = `E9350468054D0196419AD345B5220762B224367D3014583A96623262EE994E13`。
+  - `configs/navigation-live.toml` 未被改动（无 `navigation_design` 字段，仍为 legacy 默认）。
+  - 候选 live 硬拒绝实测：以临时配置（根级 `navigation_design='stable-inference-v1'`，存 `.runtime/tmp/candidate_probe.toml`）执行完整 live 参数（`--mode live --confirm-calibration --allow-paid --send-images`）→ 在**创建控制器前**以 exit 2 拒绝："stability policy requires field calibration and a newly frozen version; candidate policies cannot enable live navigation"，与第 35 节声明一致。未创建控制器、未等待 F9、未出网。
+- 边界：本冒烟不覆盖对抗性证伪（遮罩盲区、离散窗口、派生证据链、取消计费、租约容量、新旧隔离）——那是复核者的工作。现场未 ARM、未发送输入、未调用付费接口。
+- 下一步：用户指派**另一执行者**按 ADR-009 复核第 35 节（重点见其「下一条动作」）；复核通过后进入现场稳定性遮罩标定与用户选版，再复测真实时延与固定 20 次任务。

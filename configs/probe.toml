@@ -1,0 +1,68 @@
+# T00 现场探针配置（人工监督测试专用）。用法：
+#   .\.venv\Scripts\python.exe -m vrc_agent run --mode live --config configs/probe.toml
+# 探针键（已启用状态下每次发一个短动作）：F7 前进 / Ctrl+F11 后退 / F5 左移 / F4 右移 /
+# F6 右转 / Ctrl+F12 左转（500ms 满强度）/ F3 使用 / F1 抓取 / F11 丢下 / F2 聊天。
+# 默认配置 configs/default.toml 中该开关为 false；本文件仅供人工监督测试使用。
+mode = "dry-run"
+provider = "fake"
+
+[osc]
+host = "127.0.0.1"
+send_port = 9000
+receive_port = 9001
+
+[control]
+tick_hz = 50
+max_motion_ms = 500
+heartbeat_interval_ms = 100
+heartbeat_timeout_ms = 500
+observation_max_age_ms = 1500
+lease_ms = 30000
+chat_interval_ms = 2000
+max_actions_per_session = 10000
+window_title = "VRChat"
+# 现场人工探针显式开启（仅用于人工监督测试；default.toml 中默认 false）。
+enable_motion_probe = true
+
+# 窗口采集（T04）。默认值与 CaptureConfig 一致；省略 window_title 时继承 control.window_title。
+[capture]
+# 只在需要改标题时取消注释；window_title 优先于 control.window_title。
+# window_title = "VRChat"
+window_class = "UnityWndClass"
+# "exact"（完全相等）或 "contains"（包含子串）。
+window_match = "exact"
+# 本机实测：非 per-monitor DPI 感知的进程会拿到被系统缩放的错误分辨率画面（150% 缩放下 2160x1440 被虚拟化成 1440x960）。
+require_dpi_awareness = true
+# 本机实测：BitBlt 读的是屏幕，被遮挡时会静默返回遮挡窗口的像素，所以遮挡检查是必需项而不是可选项。
+require_unoccluded = true
+# 每轴采样点数，实际检查 samples × samples 个网格点（5 → 25 点）。
+occlusion_samples = 5
+# 覆盖比例低于该值时判为 WINDOW_OCCLUDED；1.0 表示必须全部命中。
+occlusion_min_ratio = 1.0
+detect_black_frames = true
+# 三个颜色通道的最大值都不超过该值即判为黑帧（GDI 未定义的 alpha 通道不参与）。
+black_max_channel = 8
+max_width = 3840
+max_height = 2160
+max_pixels = 8294400
+# 帧只留在内存；为 false 时观测不带 frame_ref（帧仍不解码、不落盘）。
+retain_frames = true
+frames_in_memory = 8
+
+# T00 参数接收实测：VRChat 内置手势参数（本地值域校验 0-7，实际以客户端为准）。
+[osc.avatar_parameters.GestureLeft]
+type = "int"
+minimum = 0
+maximum = 7
+reset_value = 0
+
+[osc.avatar_parameters.GestureRight]
+type = "int"
+minimum = 0
+maximum = 7
+reset_value = 0
+
+# 按实际 Avatar 修改并取消注释；不要假设所有 Avatar 都包含此参数。
+# [osc.avatar_parameters.Happy]
+# type = "bool"
+# reset_value = false

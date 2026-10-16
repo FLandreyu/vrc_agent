@@ -1,0 +1,26 @@
+{
+  "version": "local-rgb-stability-v1-candidate",
+  "status": "REQUIRES_FIELD_CALIBRATION",
+  "frame_size": [
+    2160,
+    1440
+  ],
+  "metric": "exact_rgb_outside_mask",
+  "excluded_rectangles": [
+    [
+      0,
+      1296,
+      86,
+      1440
+    ]
+  ],
+  "inference_ms": 8000,
+  "task_timeout_s": 30.0,
+  "max_actions": 40,
+  "max_inference_attempts": 3,
+  "checkpoints": [
+    "after_inference",
+    "before_submit"
+  ],
+  "freshness_ms": 1500
+}

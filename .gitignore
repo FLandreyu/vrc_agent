@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.runtime/
+build/
+dist/
+.env
+.env.*
+!.env.example
+configs/local*.toml
+*.log
+# 本地工具生成物（含本机路径与会话记录，绝不入库）
+.graphflow/
+.graphflow-cache/
+.evolve/
+graphflow-out/

@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "world_id": "synthetic-first-world-v1",
+  "mode": "offline-only",
+  "live_world_id": null,
+  "calibration": "SYNTHETIC_NOT_LIVE",
+  "recovery_area": "仅合成空地允许两次左右短侧移；真实世界安全区域尚未标定",
+  "limits": {"arrival_frames": 2, "centre_tolerance": 0.1, "turn_progress": 0.02, "stall_limit": 3, "max_recoveries": 2, "unknown_limit": 3, "max_actions": 40},
+  "landmarks": [
+    {"landmark_id": "green_gate", "description": "合成绿色门牌", "color_bgr": [0,255,0], "goal": {"label":"green_gate", "arrival_area":0.35}},
+    {"landmark_id": "blue_board", "description": "合成蓝色告示板", "color_bgr": [255,0,0], "goal": {"label":"blue_board", "arrival_area":0.35}},
+    {"landmark_id": "red_arch", "description": "合成红色拱门标记", "color_bgr": [0,0,255], "goal": {"label":"red_arch", "arrival_area":0.36}},
+    {"landmark_id": "yellow_sign", "description": "合成黄色路牌", "color_bgr": [0,255,255], "goal": {"label":"yellow_sign", "arrival_area":0.36}},
+    {"landmark_id": "cyan_panel", "description": "合成青色面板", "color_bgr": [255,255,0], "goal": {"label":"cyan_panel", "arrival_area":0.35}}
+  ],
+  "tasks": [
+    {"task_id":"W1-01", "landmark_id":"green_gate", "start_view":"正面远景", "initial_centre":0.5, "initial_size":0.15},
+    {"task_id":"W1-02", "landmark_id":"green_gate", "start_view":"目标偏左", "initial_centre":0.25, "initial_size":0.2},
+    {"task_id":"W1-03", "landmark_id":"green_gate", "start_view":"目标偏右", "initial_centre":0.75, "initial_size":0.2},
+    {"task_id":"W1-04", "landmark_id":"green_gate", "start_view":"正面暂时卡住", "initial_centre":0.5, "initial_size":0.2, "fault":"temporary_block"},
+    {"task_id":"W1-05", "landmark_id":"blue_board", "start_view":"正面远景", "initial_centre":0.5, "initial_size":0.1},
+    {"task_id":"W1-06", "landmark_id":"blue_board", "start_view":"目标偏左", "initial_centre":0.3, "initial_size":0.25},
+    {"task_id":"W1-07", "landmark_id":"blue_board", "start_view":"目标偏右", "initial_centre":0.7, "initial_size":0.25},
+    {"task_id":"W1-08", "landmark_id":"blue_board", "start_view":"正面暂时卡住", "initial_centre":0.5, "initial_size":0.15, "fault":"temporary_block"},
+    {"task_id":"W1-09", "landmark_id":"red_arch", "start_view":"正面远景", "initial_centre":0.5, "initial_size":0.2},
+    {"task_id":"W1-10", "landmark_id":"red_arch", "start_view":"目标偏左", "initial_centre":0.2, "initial_size":0.2},
+    {"task_id":"W1-11", "landmark_id":"red_arch", "start_view":"目标偏右", "initial_centre":0.8, "initial_size":0.2},
+    {"task_id":"W1-12", "landmark_id":"red_arch", "start_view":"正面暂时卡住", "initial_centre":0.5, "initial_size":0.25, "fault":"temporary_block"},
+    {"task_id":"W1-13", "landmark_id":"yellow_sign", "start_view":"正面远景", "initial_centre":0.5, "initial_size":0.25},
+    {"task_id":"W1-14", "landmark_id":"yellow_sign", "start_view":"目标偏左", "initial_centre":0.25, "initial_size":0.15},
+    {"task_id":"W1-15", "landmark_id":"yellow_sign", "start_view":"目标偏右", "initial_centre":0.75, "initial_size":0.15},
+    {"task_id":"W1-16", "landmark_id":"yellow_sign", "start_view":"正面暂时卡住", "initial_centre":0.5, "initial_size":0.2, "fault":"temporary_block"},
+    {"task_id":"W1-17", "landmark_id":"cyan_panel", "start_view":"前进中人工接管", "initial_centre":0.5, "initial_size":0.2, "fault":"takeover"},
+    {"task_id":"W1-18", "landmark_id":"cyan_panel", "start_view":"正面永久卡住", "initial_centre":0.5, "initial_size":0.2, "fault":"blocked"},
+    {"task_id":"W1-19", "landmark_id":"cyan_panel", "start_view":"目标不可见", "initial_centre":0.5, "initial_size":0.2, "fault":"missing"},
+    {"task_id":"W1-20", "landmark_id":"cyan_panel", "start_view":"感知返回迟到", "initial_centre":0.5, "initial_size":0.2, "fault":"late"}
+  ]
+}

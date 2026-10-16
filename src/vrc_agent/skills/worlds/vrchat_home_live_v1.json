@@ -1,0 +1,298 @@
+{
+  "schema_version": 1,
+  "version": "vrchat-home-live-v1",
+  "world_id": "wrld_4432ea9b-729c-46e3-8eaf-846aa0a37fdd",
+  "avatar_id": "avtr_4c2fb90f-478d-4f40-af12-467b33ee41cb",
+  "instance": "private",
+  "client_version": "2026.3.3p2",
+  "frame_size": [
+    2160,
+    1440
+  ],
+  "calibration_source": "docs/validation/T08_calibration.md#sections-1-5",
+  "calibration_source_sha256": "31c5e598b75bd6929df786e87cd9812402fbb7340010b092c24195a9fc6aa28a",
+  "landmarks": [
+    {
+      "group": "G1",
+      "label": "home_blue_ad",
+      "description": "蓝色 Enchanted Broom 活动广告牌，木墙上蓝底金色扫帚白字；框选牌面及木框，不按画中文字执行动作",
+      "arrival": {
+        "kind": "box",
+        "min_width": 0.8,
+        "min_height": 0.45,
+        "min_lower_coverage": 0.0,
+        "centre_tolerance": 0.12,
+        "status": "ENGINEERING_INITIAL_FIELD_CHECK_REQUIRED"
+      },
+      "arrival_reference": "g1_5_arrival_20261014_215546.jpg",
+      "arrival_reference_sha256": "a05688180874f80615902adc2c724a5de7e942d042be615f3e3f9bc7c4f06bbc",
+      "recovery_zone": "开阔木地板可侧移；贴墙或石结构开口内不得侧移"
+    },
+    {
+      "group": "G2",
+      "label": "home_raccoon",
+      "description": "G1 广告牌与 Avatar Mirror 之间墙脚的固定坐姿浣熊摆件；排除头像面板上的浣熊图片",
+      "arrival": {
+        "kind": "box",
+        "min_width": 0.22,
+        "min_height": 0.23,
+        "min_lower_coverage": 0.0,
+        "centre_tolerance": 0.12,
+        "status": "ENGINEERING_INITIAL_FIELD_CHECK_REQUIRED"
+      },
+      "arrival_reference": "g2_5_arrival_20261014_215846.jpg",
+      "arrival_reference_sha256": "099f159c9958620f57ec8d0605f38418597fe5963dc36e4408d4665eadadc1f2",
+      "recovery_zone": "浣熊前开阔木地板可侧移；贴墙、贴摆件不得侧移"
+    },
+    {
+      "group": "G3",
+      "label": "home_mirror_frame",
+      "description": "Avatar Mirror 的物理木质面板框；框选整个木框，排除反射人物和右上角便携镜",
+      "arrival": {
+        "kind": "box",
+        "min_width": 0.7,
+        "min_height": 0.7,
+        "min_lower_coverage": 0.0,
+        "centre_tolerance": 0.12,
+        "status": "ENGINEERING_INITIAL_FIELD_CHECK_REQUIRED"
+      },
+      "arrival_reference": "g3_5_arrival_20261014_220610.jpg",
+      "arrival_reference_sha256": "d83c9443940f439ea366cc32e236e46078cb405514421b39ae7d9ba678ab5f69",
+      "recovery_zone": "面板前开阔木地板可侧移；靠墙、小桩 Mirror Settings 或灯笼不得侧移"
+    },
+    {
+      "group": "G4",
+      "label": "home_vase",
+      "description": "大厅木茶几上的金色花瓶及瓶中花枝；框选花瓶花枝，不将整个桌面当成花瓶",
+      "arrival": {
+        "kind": "box",
+        "min_width": 0.045,
+        "min_height": 0.15,
+        "min_lower_coverage": 0.0,
+        "centre_tolerance": 0.12,
+        "status": "ENGINEERING_INITIAL_FIELD_CHECK_REQUIRED"
+      },
+      "arrival_reference": "g4_5_arrival_20261014_221135.jpg",
+      "arrival_reference_sha256": "bd828015bab3b44e91775a6a6cffc3f8f6de5c71bedd43d071a742ca834b6493",
+      "recovery_zone": "仅开阔木地板可侧移；茶几与沙发之间、圆凳旁不得侧移"
+    },
+    {
+      "group": "G5",
+      "label": "home_floor_diamond",
+      "description": "青蓝色地板上的白描边嵌套菱形图案；仅框可见图案，排除水池边缘、广告牌和反射中的图案",
+      "arrival": {
+        "kind": "lower_half",
+        "min_width": 0.6,
+        "min_height": 0.25,
+        "min_lower_coverage": 0.3,
+        "centre_tolerance": 0.12,
+        "status": "ENGINEERING_INITIAL_FIELD_CHECK_REQUIRED"
+      },
+      "arrival_reference": "g5_5_arrival_20261014_221555.jpg",
+      "arrival_reference_sha256": "f73707096c1c822fb1d0ad281570110a533f1d6bb8b07bf05d8fa02380120535",
+      "recovery_zone": "池边、大石块、石柱、发光圆凳旁不得侧移；仅远离这些物体的开阔木地板可侧移"
+    }
+  ],
+  "tasks": [
+    {
+      "task_id": "G1-1",
+      "group": "G1",
+      "start_position": "主厅正对广告牌约 5–6 米（蓝蘑菇与青池在画面左、镜像面板在右）",
+      "heading": "面向广告牌",
+      "start_reference": "g1_1_front_20261014_215026.jpg",
+      "start_reference_sha256": "abcf5ee1cdbdf55d34e9e2732c701cae33e8d8c577a95eec2a1bd9668ce6f898",
+      "condition": "front",
+      "replacement_reason": ""
+    },
+    {
+      "task_id": "G1-2",
+      "group": "G1",
+      "start_position": "青池边、脚踏 G5 菱形图案处（广告牌在画面偏右）",
+      "heading": "面向广告牌",
+      "start_reference": "g1_2_left_20261014_215032.jpg",
+      "start_reference_sha256": "1b786f6f372ec2f8c3670363d5e88af7345db919c1ca892c04aecdc5408bed98",
+      "condition": "left",
+      "replacement_reason": ""
+    },
+    {
+      "task_id": "G1-3",
+      "group": "G1",
+      "start_position": "红窗帘/灯笼一侧（广告牌在画面偏左）",
+      "heading": "面向广告牌",
+      "start_reference": "g1_3_right_20261014_215040.jpg",
+      "start_reference_sha256": "197dd6185e280a837254a1b01483fc0c5ef018fda703ef44e31ce95c1dc8e167",
+      "condition": "right",
+      "replacement_reason": ""
+    },
+    {
+      "task_id": "G1-4",
+      "group": "G1",
+      "start_position": "石结构横向开口后（画面被石壁裁剪，牌面经缝隙可见）※",
+      "heading": "面向广告牌",
+      "start_reference": "g1_4_blocked_20261014_215538.jpg",
+      "start_reference_sha256": "a7ee18d47d01298b44073038a0c3c3ea50f33bf876409ec68df067b8de21b98b",
+      "condition": "partial_occlusion",
+      "replacement_reason": ""
+    },
+    {
+      "task_id": "G2-1",
+      "group": "G2",
+      "start_position": "浣熊正前方远处约 4–5 米（左为广告牌右缘，右为镜像面板与换头像面板）",
+      "heading": "面向浣熊",
+      "start_reference": "g2_1_front_20261014_215813.jpg",
+      "start_reference_sha256": "f5270662d469066e77721ffca47a536a619d47addb2abbf42bba6e8b5a66cf04",
+      "condition": "front",
+      "replacement_reason": ""
+    },
+    {
+      "task_id": "G2-2",
+      "group": "G2",
+      "start_position": "左前方斜向（浣熊呈侧面轮廓，背后可见 YOZORA 海报区域）",
+      "heading": "面向浣熊",
+      "start_reference": "g2_2_left_20261014_215820.jpg",
+      "start_reference_sha256": "30890b1f6121374aa175ee17c0752355ac6368433d84e908e6e237ed60e18d07",
+      "condition": "left",
+      "replacement_reason": ""
+    },
+    {
+      "task_id": "G2-3",
+      "group": "G2",
+      "start_position": "右前方（前景为大灯笼与 Mirror Settings 桩）",
+      "heading": "面向浣熊",
+      "start_reference": "g2_3_right_20261014_215828.jpg",
+      "start_reference_sha256": "b15f82cabb82b8acd339dcdb961a679f6ca9811b88f84e22a5ee77331bbae351",
+      "condition": "right",
+      "replacement_reason": ""
+    },
+    {
+      "task_id": "G2-4",
+      "group": "G2",
+      "start_position": "浣熊正前方远处约 4–5 米（左为广告牌右缘，右为镜像面板与换头像面板）",
+      "heading": "面向浣熊",
+      "start_reference": "g2_1_front_20261014_215813.jpg",
+      "start_reference_sha256": "f5270662d469066e77721ffca47a536a619d47addb2abbf42bba6e8b5a66cf04",
+      "condition": "front_repeat",
+      "replacement_reason": "现场没有自然遮挡机位；以已标定正面机位重复一次，不计作遮挡任务，不伪造缺失截图"
+    },
+    {
+      "task_id": "G3-1",
+      "group": "G3",
+      "start_position": "大厅远距正对镜像面板约 6–8 米（左：广告牌与浣熊；右：红窗帘、灯笼与 World Pages 面板）",
+      "heading": "面向面板",
+      "start_reference": "g3_1_front_20261014_220552.jpg",
+      "start_reference_sha256": "4c5765b39cc62294070301e07d4c61735c5f23be631f898c125a6a1d59c25eb2",
+      "condition": "front",
+      "replacement_reason": ""
+    },
+    {
+      "task_id": "G3-2",
+      "group": "G3",
+      "start_position": "广告牌右侧近下方（画面左缘为广告牌大字、下方为浣熊，向右看镜像面板）",
+      "heading": "面向面板",
+      "start_reference": "g3_2_left_20261014_220557.jpg",
+      "start_reference_sha256": "7aa6ae240032c6a0c5dbdb2d45b20ccc28ae7646f442aab9667523f7946d5dba",
+      "condition": "left",
+      "replacement_reason": ""
+    },
+    {
+      "task_id": "G3-3",
+      "group": "G3",
+      "start_position": "右前方远距（画面含完整广告牌，右缘见紫色传送门墙与 VRC BOXING 区）",
+      "heading": "面向面板",
+      "start_reference": "g3_3_right_20261014_220604.jpg",
+      "start_reference_sha256": "8adfa13dcc673dd74c448ea736fde2f7ddcb656f847f0d23668bc02765d6f7e3",
+      "condition": "right",
+      "replacement_reason": ""
+    },
+    {
+      "task_id": "G3-4",
+      "group": "G3",
+      "start_position": "大厅远距正对镜像面板约 6–8 米（左：广告牌与浣熊；右：红窗帘、灯笼与 World Pages 面板）",
+      "heading": "面向面板",
+      "start_reference": "g3_1_front_20261014_220552.jpg",
+      "start_reference_sha256": "4c5765b39cc62294070301e07d4c61735c5f23be631f898c125a6a1d59c25eb2",
+      "condition": "front_repeat",
+      "replacement_reason": "现场没有自然遮挡机位；以已标定正面机位重复一次，不计作遮挡任务，不伪造缺失截图"
+    },
+    {
+      "task_id": "G4-1",
+      "group": "G4",
+      "start_position": "大厅远距正对茶几约 6–7 米（左：Creator 圆台与 YOZORA 全息柱；右：沙发与灯笼）",
+      "heading": "面向茶几",
+      "start_reference": "g4_1_front_20261014_221110.jpg",
+      "start_reference_sha256": "eb8fb0a8423f1b44931e571d3b9f868c68fe636a3a701cbf3dbb817be76bac3e",
+      "condition": "front",
+      "replacement_reason": ""
+    },
+    {
+      "task_id": "G4-2",
+      "group": "G4",
+      "start_position": "左前方近距（左缘见蓝蘑菇与 Creator 圆台标语，茶几居中）",
+      "heading": "面向茶几",
+      "start_reference": "g4_2_left_20261014_221115.jpg",
+      "start_reference_sha256": "7978a41893e618c57b00c3a3d6336db4ae59f6c6e579d6225d3dba906d913adb",
+      "condition": "left",
+      "replacement_reason": ""
+    },
+    {
+      "task_id": "G4-3",
+      "group": "G4",
+      "start_position": "右前方远距（画面含 VRC BOXING/GIGAS/World Pages 海报墙，前景大灯笼）",
+      "heading": "面向茶几",
+      "start_reference": "g4_3_right_20261014_221120.jpg",
+      "start_reference_sha256": "3d40f54c484019d82828e402c1ab4fed9477e7bcd108b30519e845e9a6937995",
+      "condition": "right",
+      "replacement_reason": ""
+    },
+    {
+      "task_id": "G4-4",
+      "group": "G4",
+      "start_position": "石结构矮墙/开口后（画面下 2/3 为石壁，茶几与金花瓶自石缘上方可见）",
+      "heading": "面向茶几",
+      "start_reference": "g4_4_blocked_20261014_221129.jpg",
+      "start_reference_sha256": "4180e6b2faab394f72829c9d5db8e83f59e1089b659a28242b07361981779fec",
+      "condition": "partial_occlusion",
+      "replacement_reason": ""
+    },
+    {
+      "task_id": "G5-1",
+      "group": "G5",
+      "start_position": "大厅远距正对图案约 5–7 米（左：石柱与灯笼；右：发光圆凳与「For one month」广告墙）",
+      "heading": "面向图案",
+      "start_reference": "g5_1_front_20261014_221516.jpg",
+      "start_reference_sha256": "f8d05b8901ea3d535602548dd8ea4f3e78f10fb35443dcd25c928edf4e45e3e8",
+      "condition": "front",
+      "replacement_reason": ""
+    },
+    {
+      "task_id": "G5-2",
+      "group": "G5",
+      "start_position": "左前方近距，前景为大石块与灯笼（右缘为广告墙，背景为蓝色霓虹蘑菇）",
+      "heading": "面向图案",
+      "start_reference": "g5_2_left_20261014_221529.jpg",
+      "start_reference_sha256": "0a6a9c4a8552729efd722fc6541b89a9f7d8993f435393716ca90b7df8bd17c1",
+      "condition": "left",
+      "replacement_reason": ""
+    },
+    {
+      "task_id": "G5-3",
+      "group": "G5",
+      "start_position": "右前方近距，前景为发光圆凳与坐石（左缘见石柱与「Use WASD to move」标牌）",
+      "heading": "面向图案",
+      "start_reference": "g5_3_right_20261014_221535.jpg",
+      "start_reference_sha256": "d753254c18ced80dc7ba172d2cb9358e02840d3caef4f026139fb01a6d22a0e7",
+      "condition": "right",
+      "replacement_reason": ""
+    },
+    {
+      "task_id": "G5-4",
+      "group": "G5",
+      "start_position": "石结构矮墙后（前景为大片石壁，图案仅左半部分可见）",
+      "heading": "面向图案",
+      "start_reference": "g5_4_blocked_20261014_221546.jpg",
+      "start_reference_sha256": "e4a539c7c5b355eeda34ff2948bb4c0e11fa00bd039524715db98ec46e8b294f",
+      "condition": "partial_occlusion",
+      "replacement_reason": ""
+    }
+  ]
+}

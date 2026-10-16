@@ -1,0 +1,105 @@
+{
+  "capture": {
+    "name": "t06_estop",
+    "session_id": "replay-t06-estop",
+    "environment_epoch": 1,
+    "start_ns": 1000000000,
+    "steps": [
+      {
+        "at_ms": 0,
+        "window": "visible",
+        "size": [
+          64,
+          48
+        ],
+        "pattern": {
+          "type": "scene",
+          "background_bgr": [
+            30,
+            30,
+            30
+          ],
+          "boxes": [
+            {
+              "bbox": [
+                0.4,
+                0.4,
+                0.6,
+                0.6
+              ],
+              "bgr": [
+                0,
+                255,
+                0
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "at_ms": 300,
+        "window": "visible",
+        "size": [
+          64,
+          48
+        ],
+        "pattern": {
+          "type": "scene",
+          "background_bgr": [
+            30,
+            30,
+            30
+          ],
+          "boxes": [
+            {
+              "bbox": [
+                0.4,
+                0.4,
+                0.6,
+                0.6
+              ],
+              "bgr": [
+                0,
+                255,
+                0
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "at_ms": 600,
+        "window": "visible",
+        "size": [
+          64,
+          48
+        ],
+        "pattern": {
+          "type": "scene",
+          "background_bgr": [
+            30,
+            30,
+            30
+          ],
+          "boxes": [
+            {
+              "bbox": [
+                0.4,
+                0.4,
+                0.6,
+                0.6
+              ],
+              "bgr": [
+                0,
+                255,
+                0
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "model_delays_ms": [],
+  "estop_at_ms": 100
+}

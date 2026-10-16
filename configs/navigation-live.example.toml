@@ -1,0 +1,27 @@
+# 示例，须填写已选择的视觉模型与预算后使用；此文件本身不会启用真实输入。
+mode = "dry-run"
+provider = "fake"
+
+[control]
+enable_motion_probe = false
+window_title = "VRChat"
+lease_ms = 30000
+observation_max_age_ms = 1500
+
+[capture]
+window_class = "UnityWndClass"
+window_match = "exact"
+require_unoccluded = true
+require_dpi_awareness = true
+
+[perception]
+provider = "openai_compat"
+model = "SET_YOUR_VISION_MODEL"
+base_url = "https://api.openai.com/v1"
+api_key_env = "OPENAI_API_KEY"
+# 每任务预算；不保证未知费用的硬上限。请按实际供应商补价格表并自行选择预算。
+budget_usd = 1.0
+timeout_ms = 1000
+max_retries = 0
+send_images = false
+# live 还需要命令行 --allow-paid --send-images，密钥只放本机环境变量。
