@@ -6,6 +6,10 @@
   归类，不发明新码、不改写已有码。
 - 报告里出现登记表之外的码时必须**原样保留并显式列出**，不能悄悄丢掉、也不能并进最近
   的家族——未知码往往正是新缺陷的第一个信号。
+- live 受监管导航（v1 / 方向 A / v2）的结局码由该层自己的
+  `live_navigation.errors.LIVE_NAVIGATION_CODES` 提供（TASKS 第 42 节 N1、第 37 节 F3
+  修正）：漏登记时 `codes_of` 会把每次 live 运行的结局算成未知码，在报告里刷出一条
+  `unknown error codes present: …`，把上面那个信号淹掉。
 """
 
 from __future__ import annotations
@@ -17,6 +21,7 @@ from dataclasses import dataclass
 from vrc_agent.capture.errors import CAPTURE_FAILURES
 from vrc_agent.contracts import REASONS
 from vrc_agent.dialogue.errors import DIALOGUE_FAILURES
+from vrc_agent.live_navigation.errors import LIVE_NAVIGATION_CODES
 from vrc_agent.perception.errors import PERCEPTION_FAILURES
 from vrc_agent.providers.errors import PROVIDER_FAILURES
 
@@ -76,6 +81,7 @@ _SOURCES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("capture", CAPTURE_FAILURES),
     ("dialogue", DIALOGUE_FAILURES),
     ("navigation", NAVIGATION_FAILURE_CLASSES),
+    ("live_navigation", LIVE_NAVIGATION_CODES),
     ("runtime", RUNTIME_CODES),
     ("verification", VERIFICATION_CODES),
     ("telemetry", TELEMETRY_CODES),

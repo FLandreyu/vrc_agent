@@ -31,7 +31,7 @@
 
 - **F1 / P3，声明与强制点不一致**：策略文件记录 5 个参数，但只有 3 个由策略强制——`inference_ms`、`task_timeout_s`、`max_inference_attempts`。`max_actions` 与 `freshness_ms` 在 `src/vrc_agent/live_navigation/stable_runtime.py` 中**没有任何读取点**：动作上限来自技能 `NavigationLimits.max_actions`（`src/vrc_agent/skills/world.py:33`，默认 40），观测时效来自硬编码 `min(1500, observation_max_age_ms)`（`stable_runtime.py:158`）。复核者把策略 monkeypatch 成 `max_actions=1, freshness_ms=1` 后端到端实跑：仍执行 **3** 个动作，报告却如实声明了被改写的策略值。今天两处取值与策略一致（40 / 1500），**运行时行为没有缺口**；但将来发布新版本策略（新摘要）改动这两个字段时，只会改变报告声明与汇总校验的时效窗口，不会改变运行时的上限与时效。建议二选一：让运行时读策略（单一事实来源），或在验证记录中明确这两项是「声明项」，并点名各自的强制点。
 - **F2 / P3，代码卫生**：`src/vrc_agent/live_navigation/stable_runtime.py:160` 留有编码损坏的乱码注释 `# ???????????????????????????????`（32 个问号），交付件的注释已被破坏。
-- **F3 / P3，码表登记缺口（非本轮引入）**：方向 A 新增的 `INFERENCE_TIMEOUT`、`STABILITY_TIMEOUT`、`IMAGE_ENCODING_TIMEOUT`、`SCENE_UNSTABLE`、`MASKED_SCENE_EVIDENCE` 都不在 `src/vrc_agent/telemetry/codes.py` 的 `KNOWN_CODES` 里；既有的 live 中止码同样不在（`ARM_TIMEOUT`、`CALIBRATION_MISMATCH`、`CONTROL_TIMEOUT`、`PATH_UNSAFE`、`RECOVERY_UNSAFE`、`TASK_TIMEOUT`）。未知码被显式当作未知处理（`family_of` 返回 `None`、汇总单独计数），因此不破坏 T10 合约；但码表/文档对 live 结局的覆盖不完整，建议连同既有缺口一起补齐。
+- **F3 / P3，码表登记缺口（非本轮引入）**：方向 A 新增的 `INFERENCE_TIMEOUT`、`STABILITY_TIMEOUT`、`IMAGE_ENCODING_TIMEOUT`、`SCENE_UNSTABLE`、`MASKED_SCENE_EVIDENCE` 都不在 `src/vrc_agent/telemetry/codes.py` 的 `KNOWN_CODES` 里；既有的 live 中止码同样不在（`ARM_TIMEOUT`、`CALIBRATION_MISMATCH`、`CONTROL_TIMEOUT`、`PATH_UNSAFE`、`RECOVERY_UNSAFE`、`TASK_TIMEOUT`）。未知码被显式当作未知处理（`family_of` 返回 `None`、汇总单独计数），因此不破坏 T10 合约；但码表/文档对 live 结局的覆盖不完整，建议连同既有缺口一起补齐。**（2026-10-16 处置：随 T10 码表一并补齐，见第 9 节与 TASKS 第 44 节。）**
 - **F4 / 观察（验证记录已声明）**：候选遮罩只排除画面左下 86×144（0.398%）。遮罩外任何变化都拒绝，包括画面另一角的 200×60 HUD 尺寸元素——这与 [验证记录](T08_direction_A.md) 第 22 行的声明一致（"区域之外的 HUD/时钟动画会保守拒绝；不会自动扩大遮罩"）。代价是：真实运行时只要遮罩外存在任何动画（时钟、麦克风图标、nameplate 等），稳定性检查会持续失败。这正是该候选保持 `REQUIRES_FIELD_CALIBRATION` 的理由，也是现场标定的核心待证项。
 - **F5 / 观察**：实现里「黑」的判据是分块 `max(chunk) > 8`，即所有通道 ≤ 8 才算黑；均匀近黑帧（如 9,9,9）不算黑，两帧相同即判稳定。文档写的是"任一保留区域全黑拒绝"，未给出阈值。影响有限（全黑场景经 `build_scene` 得不到可用实体，不会产生动作），但建议在验证记录里写明该阈值。
 
@@ -79,3 +79,10 @@ GraphFlow：本轮未调用 `graphflow_context/plan/index`（复核以源码与�
 - F2 已用 UTF-8 中文恢复注释，说明额外帧仅复验既有观测、不刷新采集时间；修正前后去位置属性的 Python AST 摘要相同，未改变可执行逻辑。
 - F5 已补明「保留区域全部 RGB 通道 ≤8 才判黑」、(9,9,9) 近黑可通过稳定性比较，以及 `build_scene` 不检查像素、不能保证拒绝高置信幻觉的限制。这同时限定第 3 节“得不到可用实体”的解释：不能将其作为普遍安全保证。
 - F3 未纳入本次修改，F4 仍待现场标定。修正与验证结果见 TASKS 第 38 节；候选 live 拒绝、T08 IN_PROGRESS 及实机 UNTESTED 均保留。
+
+## 9. F3 补充处置（2026-10-16，DSH / Flash；实现方角色，不改变上述独立复核结论）
+
+- 第 42 节 v2 复核的 N1 与本轮 F3 是同一缺口，已在第 44 节一并处置：新增 `src/vrc_agent/live_navigation/errors.py` 由该层自声明闭集，`telemetry/codes.py` 新增 `live_navigation` 家族（72→98 码、9→10 家族）。
+- 实际登记范围大于 F3 列出的 11 个码：层内共 15 个中止码（含 `CAPTURE_TIMEOUT`、`CONTROL_UNAVAILABLE`、`SOURCE_CLOSE_FAILED`）＋3 个批次汇总码（`NOT_RUN`/`DUPLICATE_ATTEMPTS`/`INVALID_REPORT`）＋8 个 `MODEL_*` 派生码。
+- 回归 `tests/unit/test_telemetry_live_codes.py`（5 项）＋`tests/unit/test_telemetry_codes.py` 层闭集清单扩充；敏感度证据 `.runtime/verify/n1_regression_sensitivity.py`；门禁 898 passed in 136.49s（`.runtime/verify/n1_gates.log`）。
+- 未改稳定性策略与摘要、live 配置、运行行为；**未启动 live、未 ARM、未付费**。本轮是实现方处置，不是独立复核；F4 与五组现场复验仍待后续。

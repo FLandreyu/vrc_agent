@@ -12,6 +12,7 @@ from __future__ import annotations
 from vrc_agent.capture.errors import CAPTURE_FAILURES
 from vrc_agent.contracts import REASONS
 from vrc_agent.dialogue.errors import DIALOGUE_FAILURES
+from vrc_agent.live_navigation.errors import LIVE_NAVIGATION_CODES
 from vrc_agent.perception.errors import PERCEPTION_FAILURES
 from vrc_agent.providers.errors import PROVIDER_FAILURES
 from vrc_agent.telemetry import codes as tcode
@@ -27,6 +28,7 @@ def test_registry_covers_every_layer_closed_set() -> None:
         CAPTURE_FAILURES,
         DIALOGUE_FAILURES,
         tcode.NAVIGATION_FAILURE_CLASSES,
+        LIVE_NAVIGATION_CODES,
         tcode.RUNTIME_CODES,
         tcode.VERIFICATION_CODES,
         tcode.TELEMETRY_CODES,

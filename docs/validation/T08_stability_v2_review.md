@@ -30,8 +30,8 @@
 
 ## 2. 非阻断问题
 
-- **N1（码表缺口，承接方向 A 的 F3）**：`INFERENCE_TIMEOUT`、`STABILITY_TIMEOUT`、`IMAGE_ENCODING_TIMEOUT`、`SCENE_UNSTABLE`、`WARMUP_UNSTABLE`、`MASKED_SCENE_EVIDENCE` 六个新结局码均不在 `KNOWN_CODES`。写结构化事件时 `reason_code` 会被整字段丢弃（`log.stats()["rejected_reasons"] == {"reason_code:unregistered_value": 1}`），而报告 JSON 仍保留该码。影响：T10 的事件侧看不到 v2 的失败原因，只能从报告侧读。建议登记这六个码或明确记录「不进事件码表」。
-- **N2（可追溯性）**：`.runtime/verify/` 内 3 份旧格式 v1 工件（`1ca695c4…`、`6b87de59…`、`a57083a7…`）的 proof 缺少 `session_id`，被现行验证器判 `stability authority mismatch`；它们不是交付物也未在任何文档中被引用。另有 12 份现行格式 v1 报告全部通过复验。建议把旧工件移出交付目录，避免汇总时被误读成回归。
+- **N1（码表缺口，承接方向 A 的 F3）**：`INFERENCE_TIMEOUT`、`STABILITY_TIMEOUT`、`IMAGE_ENCODING_TIMEOUT`、`SCENE_UNSTABLE`、`WARMUP_UNSTABLE`、`MASKED_SCENE_EVIDENCE` 六个新结局码均不在 `KNOWN_CODES`。写结构化事件时 `reason_code` 会被整字段丢弃（`log.stats()["rejected_reasons"] == {"reason_code:unregistered_value": 1}`），而报告 JSON 仍保留该码。影响：T10 的事件侧看不到 v2 的失败原因，只能从报告侧读。建议登记这六个码或明确记录「不进事件码表」。**（2026-10-16 处置：实际 26 个层内码全部登记，见第 6 节。）**
+- **N2（可追溯性）**：`.runtime/verify/` 内 3 份旧格式 v1 工件（`1ca695c4…`、`6b87de59…`、`a57083a7…`）的 proof 缺少 `session_id`，被现行验证器判 `stability authority mismatch`；它们不是交付物也未在任何文档中被引用。另有 12 份现行格式 v1 报告全部通过复验。建议把旧工件移出交付目录，避免汇总时被误读成回归。**（2026-10-16 处置：已移出至 `.runtime/archive/verify-legacy-v1/`，见第 6 节。）**
 - **N3（声明项，第 38 节既定方案）**：把运行时策略 patch 成 `max_actions=1`、`freshness_ms=1` 后，端到端仍执行 2 个动作，报告则声明被改写的值——实测复现 F1。当前实际强制点（技能 `NavigationLimits.max_actions` 默认 40、`min(1500, control.observation_max_age_ms)`）与策略今天的取值一致，运行时行为无缺口；仅在将来改策略文件时会再次出现「声明与强制点不同源」。
 
 ## 3. 已声明的剩余限界（本轮以实证确认，非新问题）
@@ -57,3 +57,13 @@
 ```
 
 探针在 `.runtime/verify/t08v2_review/` 下建立自己的 dry-run 状态目录；C 段使用自建信号源与自建记录型 provider（`paid=False`），不产生外部请求与费用。
+
+## 6. 实现方回应与后续处置（2026-10-16，非本复核者）
+
+> 本节由后续执行者追加，不改动上面复核者写下的结论与证据；复核结论以第 0–5 节为准。
+
+- **N1 已登记处置**（`docs/TASKS.md` 第 44 节，实现者 DSH / Flash）：新增 `src/vrc_agent/live_navigation/errors.py` 由该层自声明结局码闭集，`telemetry/codes.py` 新增 `live_navigation` 家族（72→98 码、9→10 家族）。实际缺口比 N1 列的 6 个码更大：层内共 15 个中止码 ＋ 3 个批次汇总码 ＋ 8 个 `MODEL_*` 派生码未登记。回归 `tests/unit/test_telemetry_live_codes.py`（5 项）＋层闭集清单扩充；敏感度证据 `.runtime/verify/n1_regression_sensitivity.py` 显示摘掉修正后 5 项全败（`{'reason_code:unregistered_value': 26}`、报告侧 `unknown error codes present: TASK_TIMEOUT×1`）。门禁 898 passed in 136.49s（`.runtime/verify/n1_gates.log`）。此为**实现方处置，非独立复核**。
+- **N2 已归档**（`docs/TASKS.md` 第 43 节，现场会话）：3 份旧格式 v1 工件移出 `.runtime/verify/` 至 `.runtime/archive/verify-legacy-v1/`，文件内容未改。
+- **N3 未改**：`max_actions`/`freshness_ms` 按第 38 节既定方案仍是声明项；本轮修正未触碰策略文件与阈值。
+- 本轮处置**未改**稳定性策略与摘要、live 配置与世界摘要、控制/运行时行为；**未启动 live、未 ARM、未付费**，也不构成实机验收。下一步仍按第 43 节：五组现场复验 → 用户选版 → 延迟复测 → 固定 20 次任务。
+

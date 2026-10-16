@@ -345,7 +345,7 @@ vrc-agent logs               # T10 日志保留：默认只列出过期候选，
 | 文件 | 职责 |
 | --- | --- |
 | `telemetry/__init__.py` | `EventLog`（后台线程 JSONL、有界队列）+ 值净化；`ALLOWED_FIELDS` 白名单 |
-| `telemetry/codes.py` | 错误码登记表：把各层闭集归入 8 个家族，未知码不并入家族 |
+| `telemetry/codes.py` | 错误码登记表：把各层闭集归入 10 个家族，未知码不并入家族 |
 | `telemetry/metrics.py` | 延迟统计（count/min/mean/p50/p95/max/sum）与事件日志回读 |
 | `telemetry/cost.py` | `PriceTable`（币种 + 生效日期）与费用估算的三态结果 |
 | `telemetry/budget.py` | `SessionBudget`：调用前授权、按价格表入账、耗尽即暂停 |
@@ -355,7 +355,7 @@ vrc-agent logs               # T10 日志保留：默认只列出过期候选，
 关键语义：
 
 - **日志只写结构化字段**：字段名走白名单（9 个），值必须是标量；字符串必须是标识符形状（ASCII、≤64 字符、无空白），命中 `sk-`/`Bearer`/`Authorization`/`api_key`/`data:image/` 等标记写 `[redacted]`，非标量、超长文本和不透明 base64/hex 块直接丢弃并计数（`stats()` 里的 `redacted`/`rejected`）。因此密钥、授权头、原始画面、转写文本都进不了日志。
-- **错误码有登记表**：`control/provider/perception/capture/dialogue/navigation/runtime/verification/telemetry` 各家族的闭集都登记在内；报告里出现的未知码单独列在 `unknown_codes`，绝不悄悄并进某个家族——码写错时必须能被看见。
+- **错误码有登记表**：`control/provider/perception/capture/dialogue/navigation/live_navigation/runtime/verification/telemetry` 各家族的闭集都登记在内（live 受监管导航一族的闭集由 `live_navigation/errors.py` 自己声明，`telemetry.codes` 只汇总；不登记就会被算成未知码，报告里每次运行都刷一条 `unknown error codes present` 警告）；报告里出现的未知码单独列在 `unknown_codes`，绝不悄悄并进某个家族——码写错时必须能被看见。
 - **价格表必须带日期和币种**：`price_as_of` 缺失或不是真实日期时，加载配置与构造供应商都会直接失败。没有价格表时费用是 `amount_usd=None` + 原因（`PRICE_UNKNOWN`/`PRICE_DATE_MISSING`/`TOKENS_UNKNOWN`），**不写 0**；只有确实已知的 0（假供应商 0 token）才写 `0.0`。
 - **预算是调用前的硬闸门**：每次付费调用前先 `ensure_affordable`，耗尽即 `ProviderError("BUDGET_EXCEEDED")`；运行时把它映射成 `outcome=BUDGET_EXCEEDED` 并停止控制器（进入 PAUSED），而不是算作运行时错误。有未知费用调用时 `remaining_usd` 只作为上界（`remaining_is_upper_bound=True`）。
 - **每小时折算只是比例**：时长为 0 时任何速率都是 `None`（`NO_DATA`）；费用不完整时 `cost_per_hour_usd=None`（`COST_INCOMPLETE`）；运行时长不足 60 秒时给出「这是比例、不是实测速率」的 warning。
