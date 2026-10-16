@@ -283,6 +283,8 @@ live 与 replay 由**同一个状态机**实现（`capture/source.py` 的 `Windo
 
 2026-10-16 v3 独立复核退回修正后发布 v4 候选：v3 的外扩保护矩形与 UI 遮罩相交时，遮罩会把保护区变化清零，比较器因此可能把真实变化判成稳定，并可发出 dry-run motion（复核 F1）；本轮按「派生/执行前拒绝相交」的保守方案补齐比较器、运行时与报告复验三层契约（交集中止 `MASKED_SCENE_EVIDENCE`），并把保护语义写入策略 `protected_mask_policy: "reject_on_overlap"`——v4 与 v3 的差异只有版本名与这条语义，schema=5，`navigation_design` 新增 `stable-inference-v4`，v1–v3 文件、摘要与报告行为不变。同时收紧版本装配（基类只接受 v1，版本选择走 `stable_navigation_class()` 工厂）与报告字段严格性。v4 同样硬拒绝 live，未现场复验；遮罩是否遮挡导航目标仍待现场确认。详见 [v4 候选验证记录](validation/T08_stability_v4.md)。
 
+2026-10-17 按 TASKS 第 54/55 节新增 v5 候选（schema=6、`stable-inference-v5`，指标 `rgb_tolerance_visible_guard_v5`，保护语义 `exclude_masked`）：**只保护未遮罩的证据像素**，部分交叠为声明放行，不保证遮罩内部稳定。比较器/运行时/报告复验均拒绝每个完全不可见的原 bbox 或外扩保护框，并按并集记 `entity_masked_px`、`protected_masked_px`、`protected_visible_px` 以及原框/保护矩形；来源事件与 proof 的审计须同实体重算相符。v5 的矩形几何和 schema 类型严格校验独立生效，v1–v4 文件、摘要及判据源码不改；5%/Δ≤2/黑帧/预热和控制边界不变，候选仍拒绝 live。详见 [v5 验证记录](validation/T08_stability_v5.md)。世界 v2 和 G3/G5 提示修改仅为[未批准提案](validation/T08_world_v2_proposal.md)，离线提案加载器不会接入生产世界选择。
+
 初始可配置值：动作上限 500 ms、控制循环 50 Hz、主代理心跳间隔 100 ms、心跳超时 500 ms、运动观测最大年龄 1500 ms。它们是保守起点，按测量调整，不是已实现性能。
 
 - 运动通道单独占用；一次只执行一个 motion/interact。每个动作结束归零，再接受后续动作。

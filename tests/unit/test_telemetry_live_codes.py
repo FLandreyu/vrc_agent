@@ -59,6 +59,8 @@ NON_CODE_LITERALS: dict[str, str] = {
     "ENGINEERING_INITIAL_FIELD_CHECK_REQUIRED": "世界配置 `ArrivalRule.status`",
     "SET_YOUR_VISION_MODEL": "配置占位哨兵（选了真模型才允许 live 启动）",
     "MODEL_": "结局码前缀，与 `PROVIDER_FAILURES` 组合成 `MODEL_*` 码",
+    "PENDING_FIELD_CAPTURE": "世界 v2 离线提案的 reference_state，表示尚未拍摄参考图，不是运行结局码",
+    "PROPOSAL_NOT_APPROVED": "世界 v2 离线提案的 status，不是运行结局码或冻结许可",
 }
 
 

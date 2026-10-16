@@ -12,7 +12,7 @@ from vrc_agent.capture.frames import Frame
 
 
 def load_policy(version="v1"):
-    if version not in {"v1", "v2", "v3", "v4"}:
+    if version not in {"v1", "v2", "v3", "v4", "v5"}:
         raise ValueError("unknown stability policy version")
     root = files("vrc_agent.live_navigation")
     raw = root.joinpath(f"stability_{version}.json").read_bytes()
@@ -41,6 +41,10 @@ def masked_rgb(frame: Frame, policy: dict) -> bytes:
 
 
 def compare(reference: Frame, current: Frame, policy: dict, entities=()) -> dict:
+    if policy["metric"] == "rgb_tolerance_visible_guard_v5":
+        from .stability_v5 import compare_v5
+
+        return compare_v5(reference, current, policy, entities)
     if policy["metric"] == "rgb_tolerance_local_guard_v2":
         from .stability_v2 import compare_v2
 

@@ -78,7 +78,7 @@ class StableNavigation(SupervisedNavigation):
 
     def derive(self, source_scene, current, frame, proof):
         # 原始 SceneState 保留在 reference；派生关系独立记录，绝不重写旧 Observation。
-        if any(intersects_mask(e, self.policy) for e in source_scene.entities):
+        if self.masked_scene(source_scene):
             raise RuntimeHalt("MASKED_SCENE_EVIDENCE")
         scene = SceneState(
             session_id=current.session_id,
@@ -114,6 +114,12 @@ class StableNavigation(SupervisedNavigation):
             derived_from=proof["reference_observation_id"],
         )
         return current, scene
+
+    def masked_scene(self, scene):
+        return any(intersects_mask(e, self.policy) for e in scene.entities)
+
+    def source_audit(self, entities):
+        return {}
 
     def reject_masked_protection(self, entities):
         """v4 声明：外扩保护矩形与遮罩相交时，在比较/派生/执行前中止。
@@ -184,6 +190,7 @@ class StableNavigation(SupervisedNavigation):
                     for e in source_scene.entities
                     if e.label in {self.skill.goal.label, "forward_clearance", "recovery_clearance"}
                 ],
+                **self.source_audit(evidence),
             )
             current, current_frame, proof = await self.fresh_proof(
                 observation, frame, entities=evidence
@@ -215,7 +222,9 @@ class StableNavigation(SupervisedNavigation):
     async def run(self):
         report = await super().run()
         report["navigation_design"] = "stable-inference-" + self.policy_version
-        report["schema_version"] = {"v1": 2, "v2": 3, "v3": 4, "v4": 5}[self.policy_version]
+        report["schema_version"] = {"v1": 2, "v2": 3, "v3": 4, "v4": 5, "v5": 6}[
+            self.policy_version
+        ]
         report["stability_policy"] = {"digest": self.policy_digest, **self.policy}
         report["stability_proofs"] = self.proofs
         return report
@@ -302,11 +311,45 @@ class StableNavigationV4(StableNavigationV3):
     POLICY_VERSION = "v4"
 
 
+class StableNavigationV5(StableNavigationV4):
+    """v5 只证明未遮罩的导航证据区域，部分交叠为声明放行。"""
+
+    POLICY_VERSION = "v5"
+
+    def source_audit(self, entities):
+        from .stability_v5 import audit_entities
+
+        return audit_entities(entities, self.policy)
+
+    def reject_masked_protection(self, entities):
+        try:
+            self.source_audit(entities)
+        except ValueError as exc:
+            raise RuntimeHalt("MASKED_SCENE_EVIDENCE") from exc
+
+    def masked_scene(self, scene):
+        # derive 对全部实体检查原 bbox；不仅检查写入导航证据的三个标签。
+        from .stability_v5 import require_visible
+
+        try:
+            raw = [
+                list(r)
+                for r in protected_rectangles(
+                    scene.entities, {**self.policy, "protected_margin": 0}
+                )
+            ]
+            require_visible(raw, self.policy)
+        except ValueError:
+            return True
+        return False
+
+
 STABLE_NAVIGATION_CLASSES = {
     "v1": StableNavigation,
     "v2": StableNavigationV2,
     "v3": StableNavigationV3,
     "v4": StableNavigationV4,
+    "v5": StableNavigationV5,
 }
 
 

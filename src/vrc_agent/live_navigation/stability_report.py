@@ -7,8 +7,8 @@ from vrc_agent.contracts import Entity
 from .stability import load_policy
 from .stability_v2 import protected_rectangles
 
-SCHEMAS = {"v1": 2, "v2": 3, "v3": 4, "v4": 5}
-WARMUP_VERSIONS = {"v2", "v3", "v4"}
+SCHEMAS = {"v1": 2, "v2": 3, "v3": 4, "v4": 5, "v5": 6}
+WARMUP_VERSIONS = {"v2", "v3", "v4", "v5"}
 
 
 def policy_verdict(metrics, policy):
@@ -18,6 +18,8 @@ def policy_verdict(metrics, policy):
         from .stability_v2 import verdict
     elif metric == "rgb_tolerance_area_guard_v3":
         from .stability_v3 import verdict
+    elif metric == "rgb_tolerance_visible_guard_v5":
+        from .stability_v5 import verdict
     else:
         raise ValueError("unknown stability metric")
     return verdict(metrics, policy)
@@ -117,9 +119,12 @@ def validate_stability_report(report):
         "stable-inference-v2": "v2",
         "stable-inference-v3": "v3",
         "stable-inference-v4": "v4",
+        "stable-inference-v5": "v5",
     }.get(declared)
     if version is None or report.get("schema_version") != SCHEMAS[version]:
         raise ValueError("unknown navigation design")
+    if version == "v5" and type(report.get("schema_version")) is not int:
+        raise ValueError("invalid visible schema type")
     policy, digest = load_policy(version)
     if report.get("stability_policy") != {"digest": digest, **policy}:
         raise ValueError("stability policy mismatch")
@@ -137,6 +142,14 @@ def validate_stability_report(report):
             mapping[key] = event
     if version in WARMUP_VERSIONS:
         validate_warmup(report, sources, policy, digest, version)
+    if version == "v5":
+        from .stability_v5 import audit_entities, verify_audit
+
+        for source in sources.values():
+            entities = [
+                Entity.model_validate({**e, "bbox": tuple(e["bbox"])}) for e in source["entities"]
+            ]
+            verify_audit(source, audit_entities(entities, policy))
     accepted, bindings = {}, {}
     for proof in proofs:
         is_stable = validate_proof(proof, policy, digest, report["session_id"], version)
@@ -169,6 +182,8 @@ def validate_stability_report(report):
                 list(r) for r in protected_rectangles(entities, policy)
             ]:
                 raise ValueError("protected evidence regions mismatch")
+            if version == "v5":
+                verify_audit(proof, audit_entities(entities, policy))
         if is_stable:
             accepted[proof["current_observation_id"]] = proof
             if "validates_observation_id" in proof:

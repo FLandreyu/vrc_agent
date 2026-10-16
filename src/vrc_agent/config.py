@@ -210,6 +210,7 @@ class AppConfig(Contract):
         "stable-inference-v2",
         "stable-inference-v3",
         "stable-inference-v4",
+        "stable-inference-v5",
     ] = "legacy"
     mode: Literal["dry-run", "live"] = "dry-run"
     #: 动作提议的来源（T01 的固定示例）；与 [perception].provider 是不同的东西。

@@ -1,0 +1,86 @@
+{
+  "source": ".runtime/tmp/t08_v4_model_probe_20261017_001337.json",
+  "source_sha256": "4994e248bdb1a440ab10037f38f620629354a0ff4b449f3fb26f47653cc14b65",
+  "replay_scope": "model_boxes_only_not_image_replay",
+  "cases": [
+    {
+      "group": "G1",
+      "pose": "arrival",
+      "goal_found": true,
+      "bbox": [
+        0.0,
+        0.19,
+        0.95,
+        0.72
+      ],
+      "expected": "GEOMETRY_ADMISSIBLE_ONLY"
+    },
+    {
+      "group": "G2",
+      "pose": "arrival",
+      "goal_found": true,
+      "bbox": [
+        0.36,
+        0.36,
+        0.64,
+        0.63
+      ],
+      "expected": "GEOMETRY_ADMISSIBLE_ONLY"
+    },
+    {
+      "group": "G3",
+      "pose": "arrival",
+      "goal_found": false,
+      "bbox": null,
+      "expected": "NO_TARGET"
+    },
+    {
+      "group": "G4",
+      "pose": "arrival",
+      "goal_found": true,
+      "bbox": [
+        0.487,
+        0.437,
+        0.552,
+        0.573
+      ],
+      "expected": "GEOMETRY_ADMISSIBLE_ONLY"
+    },
+    {
+      "group": "G5",
+      "pose": "arrival",
+      "goal_found": true,
+      "bbox": [
+        0.02,
+        0.18,
+        0.98,
+        0.99
+      ],
+      "expected": "GEOMETRY_ADMISSIBLE_ONLY"
+    },
+    {
+      "group": "G1",
+      "pose": "start",
+      "goal_found": true,
+      "bbox": [
+        0.27,
+        0.36,
+        0.7,
+        0.6
+      ],
+      "expected": "GEOMETRY_ADMISSIBLE_ONLY"
+    },
+    {
+      "group": "G3",
+      "pose": "start",
+      "goal_found": true,
+      "bbox": [
+        0.335,
+        0.285,
+        0.665,
+        0.635
+      ],
+      "expected": "GEOMETRY_ADMISSIBLE_ONLY"
+    }
+  ]
+}

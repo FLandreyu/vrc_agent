@@ -1,10 +1,10 @@
 # 现场 live 配置（用户选定：云端 DeepSeek，2026-10-16）。
 # 密钥只在本机环境变量 DEEPSEEK_API_KEY（User 级已设置），不写进本文件、日志或报告。
 #
-# 【重要】2026-10-16 现场实测：单张 2160x1440 图片推理 3.4s（最快 2.2s，思考开 3.5-7.9s）。
-# 当前 live 会话会把单次推理截到 <=1000ms（live_navigation/session.py 第 65 行），
-# 超时即 MODEL_LATE 终止。本配置在零代码修订前**不能**用于完成现场任务；
-# 详见 docs/TASKS.md 第 33 节。
+# 2026-10-17 第 54 节现场证据：思考开启且 max_tokens=1024 时 6/7 空 content；
+# 本次显式禁用思考，保持输出额度；禁用后现场记录为 7/7 返回、2.6–8.3s。
+# 本文件仍默认 dry-run/legacy（1000ms 截断）；v5 候选预算 8000ms，仍拒绝 live。
+# 8.3s 已可能超候选截止期；独立复核、现场复验与用户选版前不能宣称可完成任务。
 
 mode = "dry-run"
 provider = "fake"
@@ -22,6 +22,7 @@ require_unoccluded = true
 require_dpi_awareness = true
 
 [perception]
+disable_thinking = true
 provider = "openai_compat"
 model = "deepseek-flash"
 base_url = "https://api.deepseek.com"
