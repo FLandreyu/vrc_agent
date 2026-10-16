@@ -12,7 +12,7 @@ from vrc_agent.capture.frames import Frame
 
 
 def load_policy(version="v1"):
-    if version not in {"v1", "v2"}:
+    if version not in {"v1", "v2", "v3"}:
         raise ValueError("unknown stability policy version")
     root = files("vrc_agent.live_navigation")
     raw = root.joinpath(f"stability_{version}.json").read_bytes()
@@ -45,6 +45,10 @@ def compare(reference: Frame, current: Frame, policy: dict, entities=()) -> dict
         from .stability_v2 import compare_v2
 
         return compare_v2(reference, current, policy, entities)
+    if policy["metric"] == "rgb_tolerance_area_guard_v3":
+        from .stability_v3 import compare_v3
+
+        return compare_v3(reference, current, policy, entities)
     a, b = masked_rgb(reference, policy), masked_rgb(current, policy)
 
     # 分块避免 max() 在整幅黑帧上长时间持有 GIL，控制轮询仍能调度。

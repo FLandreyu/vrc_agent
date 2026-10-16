@@ -5,7 +5,22 @@ import re
 from vrc_agent.contracts import Entity
 
 from .stability import load_policy
-from .stability_v2 import protected_rectangles, verdict
+from .stability_v2 import protected_rectangles
+
+SCHEMAS = {"v1": 2, "v2": 3, "v3": 4}
+WARMUP_VERSIONS = {"v2", "v3"}
+
+
+def policy_verdict(metrics, policy):
+    """按策略 metric 分派复验实现；未知 metric 不得静默通过。"""
+    metric = policy["metric"]
+    if metric == "rgb_tolerance_local_guard_v2":
+        from .stability_v2 import verdict
+    elif metric == "rgb_tolerance_area_guard_v3":
+        from .stability_v3 import verdict
+    else:
+        raise ValueError("unknown stability metric")
+    return verdict(metrics, policy)
 
 
 def validate_proof(proof, policy, digest, session_id, version):
@@ -30,20 +45,20 @@ def validate_proof(proof, policy, digest, session_id, version):
     expected = (
         (not proof["black"] and proof["reference_rgb_digest"] == proof["current_rgb_digest"])
         if version == "v1"
-        else verdict(proof, policy)
+        else policy_verdict(proof, policy)
     )
     if proof[key] != expected:
         raise ValueError("contradictory stability verdict")
     return expected
 
 
-def validate_warmup(report, sources, policy, digest):
+def validate_warmup(report, sources, policy, digest, version="v2"):
     checks, references = report.get("warmup_checks"), report.get("warmup_references")
     if not isinstance(checks, list) or not isinstance(references, dict):
         raise ValueError("missing warmup evidence")
     ids = set()
     for check in checks:
-        validate_proof(check, policy, digest, report["session_id"], "v2")
+        validate_proof(check, policy, digest, report["session_id"], version)
         if check.get("protected_rectangles") != [] or "validates_observation_id" in check:
             raise ValueError("invalid warmup evidence")
         if check["current_observation_id"] in ids:
@@ -97,8 +112,12 @@ def validate_stability_report(report):
         if "stability_policy" in report or "stability_proofs" in report:
             raise ValueError("undeclared stability evidence")
         return
-    version = {"stable-inference-v1": "v1", "stable-inference-v2": "v2"}.get(declared)
-    if version is None or report.get("schema_version") != (2 if version == "v1" else 3):
+    version = {
+        "stable-inference-v1": "v1",
+        "stable-inference-v2": "v2",
+        "stable-inference-v3": "v3",
+    }.get(declared)
+    if version is None or report.get("schema_version") != SCHEMAS[version]:
         raise ValueError("unknown navigation design")
     policy, digest = load_policy(version)
     if report.get("stability_policy") != {"digest": digest, **policy}:
@@ -115,8 +134,8 @@ def validate_stability_report(report):
             if key in mapping:
                 raise ValueError("duplicate stability observation")
             mapping[key] = event
-    if version == "v2":
-        validate_warmup(report, sources, policy, digest)
+    if version in WARMUP_VERSIONS:
+        validate_warmup(report, sources, policy, digest, version)
     accepted, bindings = {}, {}
     for proof in proofs:
         is_stable = validate_proof(proof, policy, digest, report["session_id"], version)
@@ -141,7 +160,7 @@ def validate_stability_report(report):
                 or entity.last_seen_ns != times[0]
             ):
                 raise ValueError("source entity mismatch")
-        if version == "v2":
+        if version in WARMUP_VERSIONS:
             entities = [
                 Entity.model_validate({**e, "bbox": tuple(e["bbox"])}) for e in source["entities"]
             ]

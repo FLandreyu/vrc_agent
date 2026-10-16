@@ -188,7 +188,7 @@ class StableNavigation(SupervisedNavigation):
     async def run(self):
         report = await super().run()
         report["navigation_design"] = "stable-inference-" + self.policy_version
-        report["schema_version"] = 2 if self.policy_version == "v1" else 3
+        report["schema_version"] = {"v1": 2, "v2": 3, "v3": 4}[self.policy_version]
         report["stability_policy"] = {"digest": self.policy_digest, **self.policy}
         report["stability_proofs"] = self.proofs
         return report
@@ -197,8 +197,10 @@ class StableNavigation(SupervisedNavigation):
 class StableNavigationV2(StableNavigation):
     """v2 每次推理前都丢弃预热帧；不跨动作复用参考，不链式滚动推理参考。"""
 
+    POLICY_VERSION = "v2"
+
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, policy_version="v2", **kwargs)
+        super().__init__(*args, policy_version=self.POLICY_VERSION, **kwargs)
         self.warmup_checks = []
         self.warmup_references = {}
 
@@ -246,3 +248,15 @@ class StableNavigationV2(StableNavigation):
         report["warmup_checks"] = self.warmup_checks
         report["warmup_references"] = self.warmup_references
         return report
+
+
+class StableNavigationV3(StableNavigationV2):
+    """v3 保留预热与保护区，改用全局面积上限；不再使用逐块局部面积判据。
+
+    现场证据（`docs/validation/T08_stability_v2_field.md` 第 6 节）显示最安静的
+    窗口里单个 32×32 块的连续变化也远超 v2 阈值，而环境动画还会形成同量级的
+    连续变化区，因此 v3 去掉 `max_tile_changed` 这一维，只保留全局面积上限与
+    证据保护区零容差。预热、检查点、报告格式与 v2 相同，仅换策略判据。
+    """
+
+    POLICY_VERSION = "v3"
