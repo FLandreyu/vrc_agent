@@ -954,3 +954,15 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
   - **双世界候选拒绝实测**：v5 配置 + 默认世界 exit 2；v5 配置 + `--world-version v2` 同样 exit 2（创建控制器前）。
 - 边界：不覆盖对抗性证伪（报告世界版本混用/错版本、来源切片、提示注入面、G3 尺寸边界、参考图哈希链）——属复核者职责。未启动 live、未 ARM、未付费、未发真实输入。第 59 节 `protected_unexercised=true` 与新提示的真实供应商复测仍待实机。
 - 下一步：另派执行者（≠ Codex）按 ADR-009 独立复核第 60 节（建议 DSH；重点见第 60 节末条）→ 用户选版/冻结（v5 + world v2）→ 延迟复测 → 固定 20 次任务。
+
+## 62. T08 世界 v2 独立复核（2026-10-17，ADR-009，DSH / Flash）
+
+- 负责人：DSH / Flash（复核者，≠ 实现者 Codex）。对象为第 60/61 节与 [世界 v2 实现文档](validation/T08_world_v2.md)，交付件为新世界 `vrchat-home-live-v2`（世界 schema 2，语义摘要 `b65b3dab51ef720c44b942d7ed67a975fbc52ed2bc1c65610718dc47b23d1ac0`，JSON 字节 SHA256 `98798198c6dffce329444a7be4c808e8e0046d9ca7b4270ee4897675db565276`）。复核记录：[T08 世界 v2 独立复核](validation/T08_world_v2_review.md)。未启动 live、未 ARM、未付费、未读密钥、未发真实输入；未改产品源码/世界/策略/配置/实现者测试，探针只写 `.runtime/verify/`；GraphFlow 仅给 symbol anchor，未作证据。
+- **结论：第 60/61 节与实现文档的可验证声明主体未能证伪，本轮离线独立复核通过；三项非阻断观察 N1–N3；T08 仍 IN_PROGRESS。** 自建探针 `.runtime/verify/v_t08_world_v2_review.py`（SHA256 `b6c88bfb…`）**106 项条件检查 0 失败**（A16/B24/C10/D11/E12/F23/G10），报告 `.runtime/verify/v_t08_world_v2_review_report.json`（SHA256 `4bbe760b…`）；复核者独立复跑四项门禁：pytest **991 passed in 164.59s**、ruff check 通过、format **133 files already formatted**、pip check 无问题（日志 `.runtime/verify/t08_world_v2_review_gates.log`，SHA256 `c4e3561c…`）。
+- 哈希链与来源：v1/v2 摘要 = sidecar，`source_world_digest` 恰指 v1；两参考 PNG 字节 SHA256 `41b2d902…`/`51a78588…` 与 2160×1440 尺寸同世界声明一致且未入库；来源切片 1438 字节 = `T08_stability_v5_field.md` 第 2–3 节原始字节（`91b09394…`），起止标题字节精确，含七个现场数值；v1 仍指向自己的标定源 `31c5e598…`。v1 JSON/sidecar、v1 五组提示、稳定性 v1–v5、live 配置与 `control/` 在交付提交中零改动。
+- 判据：v2 只改 G3 为 box **0.50/0.52**（现场框 0.54×0.57 在 v2 到达、v1 不到达；0.499 宽/0.519 高拒绝）；G5 lower_half 0.6/0.25/0.3 逐字段不变，50 组随机框 v1/v2 结果完全相同，现场框 target 1.4、覆盖率 0.6552。G5 的覆盖率实为第三约束（恰好 0.6×0.25 未到达，y1≤0.5 时等价 w×h≥0.3，列为 N2）；恰好等值浮点在 G1 0.80×0.45 仍差 1ulp 而不到达（继承 v1，列为 N3）。
+- 提示与隔离：v2 提示 = v1 提示字节 + 固定标记 + addendum，addendum 仅在 G3/G5（395/335 字符，与提案引文逐字相同）、其余为空串且不改变非 addendum 提示；动作/权限类载荷被丢弃并记录，不能变 motion、不能改世界版本或到达；默认仍 v1，未知版本/19 任务/跨代互斥拒绝。
+- 报告与门槛：v2 报告 v2 接受 v1 拒绝；v1 legacy/v1 标签报告 v1 接受 v2 拒绝；错版本、缺 `world_version`、摘要标签混用、混合批次、重复尝试、dry-run/`sends_live_input=false`/坏 telemetry 均 invalid；20 份全成功才 `threshold_met`；`navigation-report --report-dir … --world-version v2` 同源复验。v5 候选在两世界下均于 provider/controller 之前 exit 2（`cannot enable live navigation`、不建 state 目录、无 DISARMED），F8/F9 本机热键与 live 默认 dry-run/legacy 未变。
+- N1：交付提交在来源切片区间内重排了字段文档表格分隔行（去空白+破折号归一后与 HEAD~1 完全相等，语义不变），现提交内哈希链自洽，但交付前快照的切片不可复现；建议今后来源排版改动与切片重新固化分开提交或明确“切片以某提交为准”。
+- 未覆盖/不构成验收：无真实客户端图像与模型推理，未验证新 addendum 的真实供应商遵从、G3 激活前停止、G5 水面排除、五组配对、延迟与多显示器/DPI；参考 PNG 只能证字节与声明一致，不能证采集来源；报告复验用合成报告，只证明接受/拒绝形状。**v5 + world v2 仍待用户选版/冻结，20 次真实任务（≥16/20）未执行，不得据此转 T08 DONE 或宣称实机成功率。**
+- 下一步：处置 N1（文档/提交纪律，非阻断）→ 用户选版/冻结（v5 + world v2）→ 现场复验 G3/G5 语义与新提示 → 延迟复测 → 固定 20 次任务；N2/N3 应写入现场交接，不用“恰好等于阈值”的框判到达，也不要在现场直接放宽判据。
