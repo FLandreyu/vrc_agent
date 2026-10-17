@@ -982,6 +982,17 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 - 结论与待办：**建议把生产图像编码改为 JPEG（质量 ~85），保留 8000 ms 预算与全部判据/标定**；不改稳定性策略/世界/遮罩。属 provider/编码层改动：需加依赖并锁版本（当前 venv 无 Pillow）、实现 `bgra_jpeg`、provider 媒体类型与配置项、测试与文档。本会话**未改产品代码**。
 - 边界：不是复核；JPEG 精度仅两张参考帧验证（需 20 次任务继续观察）；G3 提示词此前 8.2–8.7 s 的稳定超时应在改编码后消失，但须实现后复测确认。
 
+## 67. 现场冒烟：v5 冻结与 JPEG 编码交付（2026-10-17，现场会话；非复核）
+
+- 对第 65/66 节（提交 `3846191` 冻结、`43aee0f` JPEG）做冒烟核对（**不构成复核；DSH 针对性确认另派**）：
+  - 四项门禁实跑均退出 0：pytest **1021 passed in 155.77s**；ruff check All checks passed!；ruff format --check **135 files already formatted**；pip check No broken requirements found.。
+  - 状态：**v5 = FROZEN**（新字节 `2E21C734…` 与第 65 节一致）；v1–v4 仍 `REQUIRES_FIELD_CALIBRATION`，v4 字节未变；live 配置生效值：`design=stable-inference-v5`、`mode=dry-run`、`image_format=jpeg`、`jpeg_quality=85`、`disable_thinking=True`。
+  - **世界与旧版不变**：默认计划 `dda1d3b1…`、`--world-version v2` → `b65b3dab…`；v1–v4 候选 live 仍 exit 2。
+  - **编码自检**：`encode_bgra(…, image_format="jpeg", jpeg_quality=85)` → media `image/jpeg`、magic `ffd8`、Pillow `13.0.0` 已锁定（requirements.lock 注明 2026-10-17）；稳定运行时经 `encode_bgra` 取同源 media 类型；稳定性比较仍用原始 BGRA。
+  - 未做：**没有**以 v5 跑 `--mode live`（FROZEN 后该路径会进入控制器并等 F9，现场冒烟不触发）；v5 放行路径由第 65 节测试与 DSH 确认覆盖。
+- 边界：非复核；§66 编码耗时（中位 16–21 ms）与第 64 节 AB 对照（JPEG ~350 KB → 2.2–2.7 s）支持延迟修复预期，但供应商 p95 需在 20 次任务中实测；JPEG 精度只在两张参考帧验证。
+- 下一步：DSH 针对性确认（FROZEN 门槛、JPEG 链路、无静默回退、隐私/发送面）→ 现场 20 次任务（≥16/20）→ T08/T10 收口。
+
 ## 65. v5 冻结实施（2026-10-17，独立提交①）
 
 - 负责人 Codex / root。冻结实施与自测已完成（独立提交①）；按第63节用户授权，v5只改status为FROZEN，版本名保留。v5新字节SHA256 **`2e21c734ec902c44b3111de8f6f62f06626fbbe9410ff9a0b959469248eb4faa`**，sidecar一致；阈值/遮罩/判据/提示不改，v1–v4及世界v1/v2 JSON和sidecar逐字节不变。`navigation-live.toml`显式选择stable-inference-v5，默认仍dry-run。见[冻结验证记录](validation/T08_v5_freeze.md)。GraphFlow工具不可用，按回退约定定向读取，未伪造context/plan/index。
@@ -994,3 +1005,14 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 - `Pillow==13.0.0`在pyproject/requirements.lock精确锁定，逐项核对现有锁版本未升级；新增`bgra_jpeg`/统一编码+MIME，live配置显式jpeg/85，通用默认PNG兼容旧配置。JPEG原尺寸、忽略alpha、4:2:0、仅内存；provider原始帧和稳定性预编码接线同源，预编码不二次压缩、失败不回退PNG。配置字节SHA256 **`139e4d448163fbeb701999a361a3309906d8923fbba51d158ba9a6798677b7cd`**；images.py工作树字节SHA256 **`5748820ee858d5ea3a26f424483894fe48d83b834a9632af746a7416a50fb680`**。完整哈希及边界见[JPEG验证记录](validation/T08_jpeg_encoding.md)。
 - 离线实测G3/G5参考PNG哈希与第59/60节一致，JPEG体积366753/430166字节（PNG的6.22%/7.83%），编码中位21.25/16.19ms；仅本机编码，不能据此断言供应商p95已达标。审计`.runtime/verify/t08_jpeg_delivery.json` SHA256 **`bcc820a4ebd3c6d1cf24c84cefe4e7bf254b6d591d952dd5ede77e58a693f4ab`**；v1–v4/世界v1/v2的12文件、冻结v5摘要`2e21c734…`及提示/判据/控制源码均不变。
 - 新增30项回归，连同旧隐私用例定向38 passed in9.15s；T05静态规则仅为Image+BytesIO.save增加精确例外，补完整帧禁盘/禁网动态哨兵，不放宽其他禁用模块/属性。初次完整门禁2项旧静态规则失败保留`t08_jpeg_initial_pytest.log`；修正后最终四项门禁全绿：**1021 passed in169.86s**、ruff check通过、format135文件通过、pip check无依赖问题；日志`.runtime/verify/t08_jpeg_{pytest,ruff,format,pip}.log`。未操作真实live/ARM/付费/输入，GraphFlow工具不可用。后续须另一执行者针对性复核并现场做生产同款JPEG请求延迟/语义复测→固定20次任务；T08仍IN_PROGRESS，不宣称≥16/20或T10实机费用验收。
+
+## 67. 现场冒烟：v5 冻结与 JPEG 编码交付（2026-10-17，现场会话；非复核）
+
+- 对第 65/66 节（提交 `3846191` 冻结、`43aee0f` JPEG）做冒烟核对（**不构成复核；DSH 针对性确认另派**）：
+  - 四项门禁实跑均退出 0：pytest **1021 passed in 155.77s**；ruff check All checks passed!；ruff format --check **135 files already formatted**；pip check No broken requirements found.。
+  - 状态：**v5 = FROZEN**（新字节 `2E21C734…` 与第 65 节一致）；v1–v4 仍 `REQUIRES_FIELD_CALIBRATION`，v4 字节未变；live 配置生效值：`design=stable-inference-v5`、`mode=dry-run`、`image_format=jpeg`、`jpeg_quality=85`、`disable_thinking=True`。
+  - **世界与旧版不变**：默认计划 `dda1d3b1…`、`--world-version v2` → `b65b3dab…`；v1–v4 候选 live 仍 exit 2。
+  - **编码自检**：`encode_bgra(…, image_format="jpeg", jpeg_quality=85)` → media `image/jpeg`、magic `ffd8`、Pillow `13.0.0` 已锁定（requirements.lock 注明 2026-10-17）；稳定运行时经 `encode_bgra` 取同源 media 类型；稳定性比较仍用原始 BGRA。
+  - 未做：**没有**以 v5 跑 `--mode live`（FROZEN 后该路径会进入控制器并等 F9，现场冒烟不触发）；v5 放行路径由第 65 节测试与 DSH 确认覆盖。
+- 边界：非复核；§66 编码耗时（中位 16–21 ms）与第 64 节 AB 对照（JPEG ~350 KB → 2.2–2.7 s）支持延迟修复预期，但供应商 p95 需在 20 次任务中实测；JPEG 精度只在两张参考帧验证。
+- 下一步：DSH 针对性确认（FROZEN 门槛、JPEG 链路、无静默回退、隐私/发送面）→ 现场 20 次任务（≥16/20）→ T08/T10 收口。
