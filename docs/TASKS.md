@@ -1108,3 +1108,16 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 - v6 新报告 schema8（历史 schema7 仍可复验），新增 stability_prechecks、stage_timings，以及 stage_timing 事件；capture/encode/infer/stability/submit 的 count/p50_ms/p95_ms 可从 duration_ns 事件重算。无样本 null；字段与 schema 隔离，预检不能携带动作绑定。定向回归27 passed（含原 v6）；新增成本回归分别覆盖预检/模型后/提交前失败，无动作、预热只2对，及分位数/证据篡改拒绝。
 - 四项门禁（项目解释器）：`-m pytest -q` → `1129 passed in 370.63s (0:06:10)`（`.runtime/verify/t08_cost_pytest.log`）；`-m ruff check src tests` → `All checks passed!`；`-m ruff format --check src tests` → `142 files already formatted`；`-m pip check` → `No broken requirements found.`，退出码均0。
 - 未改 v6 JSON/sidecar、旧版策略、世界/提示、数值判据/遮罩、30秒基础租约与急停/TTL/epoch/归零；无 live/ARM/付费模型/真实输入/密钥读取。默认配置仍 dry-run。不是实机验收，T08仍IN_PROGRESS。
+
+
+## 78. T08 本机热键续租 A（2026-10-17）
+
+- A实施完成，负责人 Codex/root；依据用户授权，续接独立提交 B `d1aa93b`，本节 A 单独提交。记录：[本机续租及两次提交文件清单](validation/T08_local_lease.md)。非 ADR-009 独立复核、非实机验收，T08仍IN_PROGRESS，固定20次任务未恢复。
+- 本机Ctrl+F9=EXTEND（MOD_NOREPEAT，现有F8/F9/F10与探针键不变）；只有worker本地事件分支调用。默认max=0；现场配置增加 `lease_extension_ms=30000` / `lease_extension_max=5`，基础lease仍30000、mode仍dry-run。AppConfig仅允许v6启用，校验基础＋全部扩展≤冻结策略180s；内核独立按ARM时刻预算截断，没剩余拒绝。
+- 仅有效ARMED_IDLE/EXECUTING可延长，pending/按钮按住/失焦/心跳失效/ESTOP/过期/DISARMED/PAUSED均拒绝；同tick急停优先。epoch/lease_id/动作expires_at_ns/active_until_ns不改，pending不清零，过期不能续活。30s基础及最终到期stop+归零保留，不自动ARM/RESET/续租。Command/Proposal无extend/renew，任何IPC/JSON请求均ValueError；运行时只读状态账本。
+- 控制家族新增码 `LEASE_EXTENDED`，事件 `lease_extended`；EventLog新增4个整数字段白名单 at_ns/granted_ms/expires_ns/sequence。新v6报告schema9（历史7/8禁止夹带租约新字段/事件）新增 lease_extensions 与 control_budget（base_ms/extensions/total_ms/extension_ms/extension_max/task_timeout_ms/armed_at_ns/control_until_ns/elapsed_ms）。校验器重算次数、增量、截止、总额、事件对应、当时授权与≤1s TTL；缺事件、超上限、过期回填、无续租却elapsed>base等反例拒绝。
+- elapsed是ARM到授权时间窗结束（最迟lease截止），墙钟报告结束可能因到期失败处理更晚；不把这段清理时间冒充控制权。账本不是物理热键签名，不声称能识别全套证据一致重写。成功提示经非阻塞outbox至主代理打印，不阻塞独立控制循环。
+- 定向最终 `37 passed in 8.50s`（新增续租内核/worker/真实dry-run IPC/报告/控制台/递增时钟覆盖），隐私/T10 `71 passed in 1.74s`（R1b遍历全部13字段），另与原探针/v6/成本联合72 passed。ARM基准和基础到期共用一次读时，避免纳秒差破坏账本重算。首次完整回归 `1 failed, 1165 passed` 的唯一失败为旧白名单锁定断言；同步新增四个整数字段及隐私反例后，重新运行完整门禁。
+- 最终四项门禁（`.venv/Scripts/python.exe`）：`-m pytest -q` → **1170 passed in 275.60s (0:04:35)**（`.runtime/verify/t08_local_lease_pytest.log`）；`-m ruff check src tests` → **All checks passed!**；`-m ruff format --check src tests` → **146 files already formatted**；`-m pip check` → **No broken requirements found.**，退出码均0。
+- 默认计划与不变项审计 `.runtime/verify/t08_pilot_fix_plan.log` / `t08_pilot_fix_audit.json` 已通过：plan-only、sends_live_input=false、G2-1、世界v2摘要b65b3dab…、退出0，无gate拒绝。计划早于live资源门禁返回，不证明live装配或现场成功。四份世界JSON/sidecar补对原冻结工作树快照字节一致，像素判据实现相对9ad071c无差异。
+- 未改v6 JSON/sidecar（e46e0c28…）、v1–v5、世界/提示、5%/Δ2/保护区零容差/遮罩/2对预热、4000ms/180s/40步/运动档；无live、ARM、付费模型、真实输入、密钥读取。GraphFlow工具不可用已如实记录；交付后须另派安全复核，再由用户安排现场。

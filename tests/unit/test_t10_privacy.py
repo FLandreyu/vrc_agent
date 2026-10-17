@@ -297,5 +297,9 @@ def test_allowed_field_set_is_the_documented_one() -> None:
             "count",
             "operation",
             "value",
+            "at_ns",
+            "granted_ms",
+            "expires_ns",
+            "sequence",
         }
     )

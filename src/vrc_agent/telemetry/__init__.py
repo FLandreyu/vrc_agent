@@ -50,6 +50,10 @@ ALLOWED_FIELDS = frozenset(
         "count",
         "operation",
         "value",
+        "at_ns",
+        "granted_ms",
+        "expires_ns",
+        "sequence",
     }
 )
 
@@ -66,7 +70,8 @@ KIND_SCALAR = "scalar"
 #: - `action_id` 是契约 `ActionRequest.action_id`（`new_id()` = `uuid4().hex`）；
 #: - `mode`/`operation` 是代码侧的词形常量或 OSC 参数名（字母开头、词字符与短横线、≤32）；
 #: - `status`/`state`/`reason_code` 是闭集（登记码 + 状态字面量），未知值一律拒绝；
-#: - `pid`/`count` 只接受整数；`value` 只接受数值或 OSC 参数地址（`Scalar` 里没有字符串）。
+#: - `pid`/`count` 与续租的 `at_ns/granted_ms/expires_ns/sequence` 只接受整数；
+#:   `value` 只接受数值或 OSC 参数地址（`Scalar` 里没有字符串）。
 FIELD_KINDS: dict[str, str] = {
     "action_id": KIND_ACTION_ID,
     "mode": KIND_WORD,
@@ -77,6 +82,10 @@ FIELD_KINDS: dict[str, str] = {
     "pid": KIND_INT,
     "count": KIND_INT,
     "value": KIND_SCALAR,
+    "at_ns": KIND_INT,
+    "granted_ms": KIND_INT,
+    "expires_ns": KIND_INT,
+    "sequence": KIND_INT,
 }
 
 

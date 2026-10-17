@@ -163,7 +163,19 @@ def _worker(connection, config_json: str, state_path: str, session_id: str) -> N
         transport = OscTransport(config.osc) if live else RecordingTransport(config.osc)
         startup_stage = "log"
         log = EventLog(state_dir / f"{session_id}.jsonl", session_id)
-        core = Controller(session_id, config.control, transport, SystemClock(), log.emit)
+        task_timeout_s = 30.0
+        if config.navigation_design == "stable-inference-v6":
+            from vrc_agent.live_navigation.stability import load_policy
+
+            task_timeout_s = load_policy("v6")[0]["task_timeout_s"]
+        core = Controller(
+            session_id,
+            config.control,
+            transport,
+            SystemClock(),
+            log.emit,
+            task_timeout_s=task_timeout_s,
+        )
         log.emit("controller_started", pid=os.getpid(), mode=config.mode)
         threading.Thread(
             target=_receive, args=(connection, inbox, disconnected), daemon=True
@@ -195,6 +207,17 @@ def _worker(connection, config_json: str, state_path: str, session_id: str) -> N
                             core.arm(avatar_valid and controls.focus_ok(bind=True))
                         elif event == "reset":
                             core.reset()
+                        elif event == "extend":
+                            if pending_button_releases or not controls.focus_ok():
+                                raise ValueError(
+                                    "local extension requires released buttons and focus"
+                                )
+                            extend_from_hotkey(
+                                core,
+                                notify=lambda message: respond(
+                                    {"notification": "lease_extended", "message": message}
+                                ),
+                            )
                         elif event in PROBE_MOTIONS:
                             if (
                                 not pending_button_releases
@@ -304,6 +327,8 @@ def _worker(connection, config_json: str, state_path: str, session_id: str) -> N
                 try:
                     op, payload = command.operation, command.payload
                     data = None
+                    if op in {"extend", "renew"}:
+                        raise ValueError("lease extension requires local hotkeys")
                     if op in {"arm", "reset"} and live:
                         raise ValueError("live ARM/RESET requires local hotkeys")
                     if exiting_at is not None and op not in {"status", "shutdown", "estop"}:
@@ -397,6 +422,22 @@ def _worker(connection, config_json: str, state_path: str, session_id: str) -> N
         connection.close()
 
 
+def extend_from_hotkey(core: Controller, *, notify=print) -> dict:
+    """只从本机事件分支调用；不添加任何管道操作。"""
+    record = core.extend_local()
+    granted_s = sum(r["granted_ms"] for r in core.lease_extensions) / 1000
+    remaining_s = (record["expires_ns"] - core.clock.now_ns()) / 1_000_000_000
+    try:
+        notify(
+            f"Lease extended: +{granted_s:g}s "
+            f"({record['sequence']}/{core.config.lease_extension_max}), "
+            f"expires in {remaining_s:g}s. F8=ESTOP",
+        )
+    except OSError:
+        pass  # 控制台不可用不得改变已生效租约；worker 使用非阻塞 outbox 通知。
+    return record
+
+
 def startup_failure_detail(exc: Exception, stage: str) -> str:
     """只透出已知诊断，不原样回显可能包含私密配置/路径的任意异常文本。"""
     known = {
@@ -478,6 +519,10 @@ class ControllerProcess:
                 if not self.connection.poll(max(0, deadline - time.monotonic())):
                     break
                 response = json.loads(self.connection.recv_bytes(65536))
+                if response.get("notification") == "lease_extended":
+                    # 打印放在主代理侧；独立控制循环绝不等待控制台 I/O。
+                    print(response["message"], flush=True)
+                    continue
                 if response.get("request_id") == command.request_id:
                     if not response.get("ok"):
                         raise ValueError(response.get("error", "controller rejected command"))

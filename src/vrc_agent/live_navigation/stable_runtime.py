@@ -375,6 +375,8 @@ class StableNavigationV6(StableNavigationV5):
         super().__init__(*args, **kwargs)
         self.prechecks = []
         self.retry_reference = None
+        self.control_snapshot = None
+        self.extension_sequences = set()
 
     async def timed(self, stage, awaitable):
         started = self.clock.now_ns()
@@ -397,7 +399,20 @@ class StableNavigationV6(StableNavigationV5):
 
     async def rpc(self, operation, payload=None):
         request = super().rpc(operation, payload)
-        return await self.timed("submit", request) if operation == "submit" else await request
+        value = await self.timed("submit", request) if operation == "submit" else await request
+        if operation == "status" and value.get("control_budget", {}).get("armed_at_ns") is not None:
+            original = self.authority
+            if original is None or (
+                value["environment_epoch"] == original["environment_epoch"]
+                and value["control_budget"]["armed_at_ns"]
+                == original["control_budget"]["armed_at_ns"]
+            ):
+                self.control_snapshot = value
+                for record in value["lease_extensions"]:
+                    if record["sequence"] not in self.extension_sequences:
+                        self.event("lease_extended", reason_code="LEASE_EXTENDED", **record)
+                        self.extension_sequences.add(record["sequence"])
+        return value
 
     async def observe(self, after_ns=None):
         # 每次 observe（包括动作后）重建预热；只在本次重试内复用，不跨动作滚动参考。
@@ -434,9 +449,28 @@ class StableNavigationV6(StableNavigationV5):
         from .timings import summarize_timings
 
         report = await super().run()
-        report["schema_version"] = 8
+        report["schema_version"] = 9
         report["stability_prechecks"] = self.prechecks
         report["stage_timings"] = summarize_timings(self.events)
+        snapshot = self.control_snapshot
+        if snapshot is None:
+            cfg = self.client.config.control
+            budget = {
+                "base_ms": cfg.lease_ms,
+                "extensions": 0,
+                "total_ms": cfg.lease_ms,
+                "extension_ms": cfg.lease_extension_ms,
+                "extension_max": cfg.lease_extension_max,
+                "task_timeout_ms": int(self.task_timeout_s * 1000),
+                "armed_at_ns": None,
+                "control_until_ns": None,
+                "elapsed_ms": None,
+            }
+            records = []
+        else:
+            budget, records = snapshot["control_budget"], snapshot["lease_extensions"]
+        report["control_budget"] = budget
+        report["lease_extensions"] = records
         return report
 
 

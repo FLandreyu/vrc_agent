@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from vrc_agent.capture.errors import CAPTURE_FAILURES
 from vrc_agent.contracts import REASONS
+from vrc_agent.control.events import CONTROL_EVENTS
 from vrc_agent.dialogue.errors import DIALOGUE_FAILURES
 from vrc_agent.live_navigation.errors import LIVE_NAVIGATION_CODES
 from vrc_agent.perception.errors import PERCEPTION_FAILURES
@@ -23,6 +24,7 @@ def test_registry_covers_every_layer_closed_set() -> None:
 
     for source in (
         REASONS,
+        CONTROL_EVENTS,
         PROVIDER_FAILURES,
         PERCEPTION_FAILURES,
         CAPTURE_FAILURES,
@@ -39,7 +41,7 @@ def test_registry_covers_every_layer_closed_set() -> None:
 def test_registry_is_stable_and_families_round_trip() -> None:
     assert tcode.KNOWN_CODES == tuple(tcode.CODE_REGISTRY)
     grouped = tcode.families()
-    assert grouped["control"] == REASONS[: len(grouped["control"])]
+    assert grouped["control"] == REASONS + CONTROL_EVENTS
     for code in tcode.KNOWN_CODES:
         assert tcode.is_known(code)
         assert tcode.family_of(code) is not None

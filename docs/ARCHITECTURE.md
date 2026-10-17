@@ -60,6 +60,7 @@ flowchart TD
 - 动作 IPC 使用父进程创建并继承的 multiprocessing Pipe，以 JSON bytes 传输、限制消息大小，不使用 pickle 反序列化；不开放控制网络端口。live ARM/RESET 拒绝来自该管道的请求，只接受本机热键。独立 stop 命令使用当前 Windows 会话内受默认系统 DACL 保护的命名 Event，只能停止，不能启用。
 - `dry-run` 使用记录型 transport，绝不创建真实输出端；默认模式是 dry-run。
 - live 模式启动后仍为 `DISARMED`，只能由本机用户操作授予短期控制租约。模型、语音、画面文字不能 ARM/RESUME。
+- 第76节试点后新增显式启用的本机 Ctrl+F9 EXTEND：默认次数0；现场v6配置30000ms×最多5次，总时长含30s基础租约不超过冻结策略180s。只在有效 ARMED_IDLE/EXECUTING 且无待释放/焦点正常时增加截止；epoch/TTL/动作时限不动，到期不可复活。Command/Proposal不增加extend/renew，模型/IPC不可续租，F8急停同tick优先。成功通知经非阻塞outbox在主代理打印。新v6报告schema9含可重算lease_extensions/control_budget及对应事件；历史schema7/8不能夹带新字段/事件。详见 [本机续租验证](validation/T08_local_lease.md)；早期“不续租”描述为历史行为，不代表现在会自动续租。
 - 急停先清空队列、释放受控输入和取消播放，再记录日志；不能等待模型退出后才停止。
 - 主代理崩溃由控制进程处理；控制进程自身崩溃、系统卡死和 UDP 丢包不能得到绝对停止保证，必须如实记录限制。
 

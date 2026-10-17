@@ -60,6 +60,8 @@ class ControlConfig(Contract):
     heartbeat_timeout_ms: Annotated[int, Field(ge=100, le=1000)] = 500
     observation_max_age_ms: Annotated[int, Field(ge=100, le=5000)] = 1500
     lease_ms: Annotated[int, Field(ge=500, le=60000)] = 30000
+    lease_extension_ms: Annotated[int, Field(ge=1, le=30000)] = 30000
+    lease_extension_max: Annotated[int, Field(ge=0, le=5)] = 0
     chat_interval_ms: Annotated[int, Field(ge=1500, le=60000)] = 2000
     max_actions_per_session: Annotated[int, Field(ge=10, le=100000)] = 10000
     window_title: Annotated[str, Field(min_length=1, max_length=256)] = "VRChat"
@@ -228,6 +230,18 @@ class AppConfig(Contract):
 
     @model_validator(mode="after")
     def navigation_parameters(self):
+        if self.control.lease_extension_max:
+            if self.navigation_design != "stable-inference-v6":
+                raise ValueError("local lease extensions require v6")
+            from vrc_agent.live_navigation.stability import load_policy
+
+            budget = load_policy("v6")[0]["task_timeout_s"] * 1000
+            if (
+                self.control.lease_ms
+                + self.control.lease_extension_ms * self.control.lease_extension_max
+                > budget
+            ):
+                raise ValueError("lease base plus extensions exceeds task_timeout_s")
         if self.navigation_design != "stable-inference-v6" and (
             self.navigation_motion_profile != "cautious"
             or self.control.observation_max_age_ms > 1500

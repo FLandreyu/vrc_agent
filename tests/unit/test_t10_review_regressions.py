@@ -32,7 +32,7 @@ from vrc_agent.providers.openai_compat import (
     HttpResponse,
     OpenAICompatibleProvider,
 )
-from vrc_agent.telemetry import EventLog
+from vrc_agent.telemetry import ALLOWED_FIELDS, EventLog
 from vrc_agent.telemetry.budget import SessionBudget
 from vrc_agent.telemetry.report import (
     SessionRecorder,
@@ -297,7 +297,7 @@ def test_r1a_unknown_field_names_never_reach_the_reason_codes(tmp_path):
 
 @pytest.mark.parametrize(
     "field",
-    ["action_id", "status", "state", "reason_code", "pid", "mode", "count", "operation", "value"],
+    sorted(ALLOWED_FIELDS),
 )
 def test_r1b_the_reviewer_payload_cannot_land_in_any_allowed_field(tmp_path, field):
     """修正件复核 R1b：44 字符 base64 串（含 `-`/`_`）在每个允许字段里都必须被拒。

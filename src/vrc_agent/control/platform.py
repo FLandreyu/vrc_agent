@@ -131,7 +131,7 @@ class WindowsControls:
         self.dll.UnregisterHotKey.argtypes = [w.HWND, ctypes.c_int]
         self.title = title
         self.bound_hwnd = None
-        self.keys = {1: "estop", 2: "arm", 3: "reset"}
+        self.keys = {1: "estop", 2: "arm", 3: "reset", 14: "extend"}
         self.registered: list[int] = []
         if enable_probe:
             # T00 人工探针：F7 前进 / Ctrl+F11 后退 / F6 右转 / Ctrl+F12 左转 / F5 左移 /
@@ -152,6 +152,7 @@ class WindowsControls:
                 (1, 0x77, 0x4000),
                 (2, 0x78, 0x4000),
                 (3, 0x79, 0x4000),
+                (14, 0x78, 0x4002),  # Ctrl+F9 / MOD_NOREPEAT：仅本机人工续租。
                 (4, 0x76, 0x4000),
                 (5, 0x75, 0x4000),
                 (6, 0x74, 0x4000),

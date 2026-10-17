@@ -19,6 +19,8 @@ class Controller:
         transport: MappedTransport,
         clock: Clock,
         emit: Callable[..., None] | None = None,
+        *,
+        task_timeout_s: float = 180.0,
     ):
         self.session_id = session_id
         self.config = config
@@ -38,6 +40,12 @@ class Controller:
         self.pending_releases = 0
         self.last_chat_ns: int | None = None
         self.reason = "OK"
+        if not 0 < task_timeout_s <= 180:
+            raise ValueError("invalid lease control budget")
+        self.lease_budget_ms = int(task_timeout_s * 1000)
+        self.lease_started_ns = None
+        self.lease_ended_ns = None
+        self.lease_extensions = []
 
     def heartbeat(self) -> None:
         self.last_heartbeat_ns = self.clock.now_ns()
@@ -51,7 +59,10 @@ class Controller:
         self.environment_epoch += 1
         self.observations.clear()
         self.lease_id = new_id()
-        self.lease_expires_ns = self.clock.now_ns() + self.config.lease_ms * MS
+        self.lease_started_ns = self.clock.now_ns()
+        self.lease_expires_ns = self.lease_started_ns + self.config.lease_ms * MS
+        self.lease_ended_ns = None
+        self.lease_extensions = []
         self.state = "ARMED_IDLE"
         self.reason = "OK"
         self.emit("armed", state=self.state)
@@ -64,6 +75,62 @@ class Controller:
         self.reason = "OK"
         self.lease_id = None
         self.observations.clear()
+
+    def extend_local(self) -> dict:
+        """仅 service 的本地热键调用；不公开给 IPC / Proposal。
+
+        即使调用方漏了到期检查也先 tick；但不能靠本次 tick 消化 pending 后续租。
+        """
+        if self.pending_releases:
+            raise ValueError("pending releases prevent lease extension")
+        self.tick()
+        now = self.clock.now_ns()
+        if (
+            self.pending_releases
+            or self.state not in {"ARMED_IDLE", "EXECUTING"}
+            or self.lease_id is None
+            or now >= self.lease_expires_ns
+            or len(self.lease_extensions) >= self.config.lease_extension_max
+            or self.lease_started_ns is None
+        ):
+            raise ValueError("local lease extension unavailable")
+        remaining = (
+            self.lease_started_ns + self.lease_budget_ms * MS - self.lease_expires_ns
+        ) // MS
+        granted = min(self.config.lease_extension_ms, remaining)
+        if granted <= 0:
+            raise ValueError("no remaining lease control budget")
+        self.lease_expires_ns += granted * MS
+        record = {
+            "at_ns": now,
+            "granted_ms": granted,
+            "expires_ns": self.lease_expires_ns,
+            "sequence": len(self.lease_extensions) + 1,
+        }
+        self.lease_extensions.append(record)
+        self.emit("lease_extended", reason_code="LEASE_EXTENDED", **record)
+        return dict(record)
+
+    def control_budget(self) -> dict:
+        total = self.config.lease_ms + sum(r["granted_ms"] for r in self.lease_extensions)
+        until = None
+        if self.lease_started_ns is not None:
+            until = (
+                self.lease_ended_ns
+                if self.lease_ended_ns is not None
+                else min(self.clock.now_ns(), self.lease_expires_ns)
+            )
+        return {
+            "base_ms": self.config.lease_ms,
+            "extensions": len(self.lease_extensions),
+            "total_ms": total,
+            "extension_ms": self.config.lease_extension_ms,
+            "extension_max": self.config.lease_extension_max,
+            "task_timeout_ms": self.lease_budget_ms,
+            "armed_at_ns": self.lease_started_ns,
+            "control_until_ns": until,
+            "elapsed_ms": (until - self.lease_started_ns) / MS if until is not None else None,
+        }
 
     def observe(self, observation: Observation) -> bool:
         now = self.clock.now_ns()
@@ -200,6 +267,8 @@ class Controller:
 
     def stop(self, reason: str = "MANUAL_STOP", emergency: bool = False) -> None:
         # 先释放再记录事件，记录不得成为停止前置条件。
+        if self.state in {"ARMED_IDLE", "EXECUTING"}:
+            self.lease_ended_ns = min(self.clock.now_ns(), self.lease_expires_ns)
         self.state = "ESTOP" if emergency or self.state == "ESTOP" else "PAUSED"
         self.reason = reason
         self.lease_id = None
@@ -280,4 +349,6 @@ class Controller:
             "lease_expires_ns": self.lease_expires_ns,
             "active_action_id": self.active.action_id if self.active else None,
             "action_count": len(self.results),
+            "lease_extensions": [dict(r) for r in self.lease_extensions],
+            "control_budget": self.control_budget(),
         }

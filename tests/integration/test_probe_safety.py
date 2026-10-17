@@ -24,7 +24,15 @@ from vrc_agent.transport.osc import RecordingTransport
 
 
 def run_worker(
-    schedule, *, lease_ms=30000, heartbeat_ms=1000, fail_release=False, fail_address=None
+    schedule,
+    *,
+    lease_ms=30000,
+    heartbeat_ms=1000,
+    fail_release=False,
+    fail_address=None,
+    extension_ms=30000,
+    extension_max=0,
+    focus_lost_at=None,
 ):
     """驱动真实 _worker；schedule 为 [(时间, [按键事件...]), ...]，返回事件 trace。"""
     current = [0.0]
@@ -53,6 +61,8 @@ def run_worker(
     controls = Mock()
     controls.events.side_effect = events
     controls.focus_ok.return_value = True
+    if focus_lost_at is not None:
+        controls.focus_ok.side_effect = lambda **_: current[0] < focus_lost_at
     signal = Mock()
     signal.triggered.return_value = False
     log = Mock()
@@ -65,9 +75,12 @@ def run_worker(
     clock = SimpleNamespace(now_ns=fake_time.monotonic_ns)
     config = AppConfig(
         mode="live",
+        navigation_design="stable-inference-v6" if extension_max else "legacy",
         control=ControlConfig(
             enable_motion_probe=True,
             lease_ms=lease_ms,
+            lease_extension_ms=extension_ms,
+            lease_extension_max=extension_max,
             heartbeat_timeout_ms=heartbeat_ms,
         ),
     )

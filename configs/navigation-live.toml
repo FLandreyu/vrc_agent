@@ -17,6 +17,8 @@ provider = "fake"
 enable_motion_probe = false
 window_title = "VRChat"
 lease_ms = 30000
+lease_extension_ms = 30000
+lease_extension_max = 5
 observation_max_age_ms = 4000
 
 [capture]

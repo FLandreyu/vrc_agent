@@ -35,3 +35,7 @@ def validate_timings(report):
     for stage in STAGES:
         if type(actual[stage]["count"]) is not int:
             raise ValueError("invalid timing count")
+        for key in ("p50_ms", "p95_ms"):
+            value = actual[stage][key]
+            if value is not None and type(value) is not float:
+                raise ValueError("invalid timing quantile")

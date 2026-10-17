@@ -20,6 +20,7 @@ from dataclasses import dataclass
 
 from vrc_agent.capture.errors import CAPTURE_FAILURES
 from vrc_agent.contracts import REASONS
+from vrc_agent.control.events import CONTROL_EVENTS
 from vrc_agent.dialogue.errors import DIALOGUE_FAILURES
 from vrc_agent.live_navigation.errors import LIVE_NAVIGATION_CODES
 from vrc_agent.perception.errors import PERCEPTION_FAILURES
@@ -75,7 +76,7 @@ class CodeSpec:
 
 
 _SOURCES: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("control", REASONS),
+    ("control", REASONS + CONTROL_EVENTS),
     ("provider", PROVIDER_FAILURES),
     ("perception", PERCEPTION_FAILURES),
     ("capture", CAPTURE_FAILURES),
