@@ -1016,3 +1016,11 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 - **非阻断观察**：N1 稳定性 sidecar/文档摘要按**工作树字节（CRLF，`core.autocrlf=true`）**记录——`git show 3ae0e40:…/stability_v5.json` 的 LF blob 直接 SHA-256 为 `5cf0a27e…`，LF→CRLF 后恰为文档旧候选 `1cc4287a…`；冻结后工作树字节 `2e21c734…` 自洽，但在 LF 检出/`git archive` 环境无法用同一命令复现，建议后续注明口径或用 `.gitattributes` 固定行尾。N2 缺密钥文案 `environment variable <name> is empty or missing` 含配置声明的变量名（不含值），在 `251b5a1` 已存在，非本轮引入。
 - 边界：本轮**不启动 live、不 ARM、不调用付费模型、不发送真实输入、不读密钥**；FROZEN 放行只验证到 provider 构造哨兵，未跨进程/未真实采集；JPEG 精度只用合成帧测通道误差（最大 4），未重测现场 G3/G5 语义；未测编码耗时/内存/供应商 p95。**这是离线定向确认，不是实机验收。**
 - 下一步：现场以 JPEG q85 重做 G3/G5 语义与延迟复测 → 固定 20 次真实任务（≥16/20）→ T08 收口；冻结阈值/遮罩/判据/提示/世界 v2 与 JPEG 质量任何改动都需重新冻结并复核。T08 仍 IN_PROGRESS。
+
+## 69. 20 次任务试点（G2-1）：两项集成问题阻断（2026-10-17，现场会话；非复核）
+
+- 结果：**任务失败 `STALE_OBSERVATION`**（22 秒；1 个动作＝wait 100ms；2 次预热检查均 stable；2 个稳定性证明均 stable）。报告：`.runtime/live/G2-1/navigation-live/G2-1-1eeb947b….json`，SHA256 `9AC40C41…`。**这是首次真实 live 执行**：ARM、抓帧、JPEG 请求、模型推理、稳定性比较、动作提交、报告与 usage 记账全链路都已跑通（`design=v5`、`world=v2`、`sends_live_input=true`、usage 1 次调用 $0.000811/1801 tokens、`field_acceptance=REQUIRES_HUMAN_REVIEW`）。
+- **F-A（模型不出 forward_clearance）**：推理只返回目标实体 `home_raccoon [0.41,0.44,0.57,0.6]`，未报 `forward_clearance`/`recovery_clearance`；skill 对前进动作要求 clearance → 决策退化为 `wait`（连续 3 次 wait 即 `PATH_UNSAFE`）。与第 54/59 节探测不确定项（"无法确认正前方可行走地板"）一致。当前提示词只做"可选且保守"描述，未给出运行时实际要求的几何形状（下半幅地板框：x1≤0.35、x2≥0.65、y1≤0.7、y2≥0.9）。
+- **F-B（动作后抓帧竞态）**：wait 完成后 `observe(after_ns=finished_at_ns)` 的首次抓帧触发 `capture()` 的 `STALE_OBSERVATION`（重复观测 ID / ≤last_capture / ≤after_ns 任一即中止）。100 ms 动作结束时最新帧可能尚未严格晚于 `finished_at_ns` → 立即判死。属运行时抓帧时序，不是判据问题。
+- 判定：两项均为**集成层问题**（不涉及稳定性判据/遮罩/阈值/世界）；修复需实现方（F-B 抓帧等待或有限重试；F-A 提示词明确 clearance 几何/示例，或经复核调整 clearance 门槛——**不得静默放宽安全要求**），按冻结纪律走复核，必要时用户重新冻结。**20 次任务暂停，本次不计入批次**。
+- 边界：试点失败记录，不是验收结论；世界 v2/v5 摘要、live 配置、判据均未改动；未继续执行其余 19 个任务。
