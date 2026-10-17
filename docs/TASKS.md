@@ -1033,3 +1033,13 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 - 新增55项回归：采集与完整闭环22项、提示/原门槛33项；定向**55 passed in12.94s**。最终四项门禁全绿：**1076 passed in282.17s**、ruff check通过、format137文件通过、pip check无依赖问题。日志`.runtime/verify/t08_pilot_{targeted,pytest,ruff,format,pip}.log`。两条world v2+v5+JPEG85+G2-1完整合成报告通过复验：有合法clearance为SUCCESS、无clearance为PATH_UNSAFE；均注入动作后等于finished_at_ns的竞态帧再恢复、最终PAUSED/归零且sends_live_input=false；不是实机或模型遵从证据。
 - 交付字节SHA256：`runtime.py` **`26ca82972e507676c143a7561d12fa9dbc12b7b28012754015cce86bed9fdaea`**，`skill.py` **`8f7aa315fe85335da524f65db25cf8d85a241d9a45f66e41bcc515feff876b8b`**；共享指导UTF-8 SHA256 **`fceef13937071dc9e9bbe9913a419f190fccb4beb73998dbc5c15595e08db821`**。审计`.runtime/verify/t08_pilot_delivery.json` SHA256 **`5a3d1186aabcbc4ee0cbb3b8b62fa8badff1c3e338a0de5ef9a4bd7bf99590af`**，含22个受保护文件字节摘要、10个有效提示摘要、测试/报告/日志哈希与不变项检查。冻结v5仍`2e21c734…`，世界v2仍`b65b3dab…`。
 - 下一步：另一执行者按ADR-009定向复核F-B有限性/新鲜度/急停与F-A提示/门槛一致性及不变项→按冻结纪律现场确认新提示语义与生产时延→再恢复固定20次任务。第69节试点仍不计入批次，未执行其余19项；不得据此宣称实机已修复、≥16/20或T10实机折算已验收。
+
+## 71. G2-1 试点重跑（F-A/F-B 修复后）：暴露预算与新参数代差（2026-10-17，现场会话；非复核）
+
+- 结果：**仍失败 `STALE_OBSERVATION`**——控制器拒收动作（`control/core.py` `_reject_reason`：绑定观测年龄 ≥ `observation_max_age_ms`=1500 ms）。报告 `.runtime/live/G2-1b/navigation-live/G2-1-c4dba0ed….json`；37 s、4 次推理（$0.00366）、7 个稳定证明、8 次预热检查全部 stable；唯一动作 `wait` 被拒。
+- **F-A 部分修复**：4 次推理中 1 次返回 `forward_clearance [0.05,0.62,0.95,0.98] conf=0.9`（`runtime-clearance-v1` 生效），其余 3 次未返回 → 决策退化为 wait。模型对 clearance 的给出不稳定。
+- **F-B 修复有效**：未再出现「动作后立即抓帧 STALE」；本次 STALE 来自控制器动作准入。
+- **F-C（动作新鲜度预算过紧）**：`obs-000018` 捕获于 29844.96，动作提交于 29846.49 → **1.53 s，仅超 30 ms 被拒**。v5 比较器现场耗时 0.37–0.5 s＋抓帧＋RPC 已把「观测→提交」管线顶到 1.5 s 悬崖；1500 ms 属本地 1000 ms 推理时代参数。
+- **F-D（运动包络/任务预算与云端延迟不匹配）**：动作固定 `duration_ms=200`、`forward=0.2`（运行时校验白名单），约 0.06 m/步；40 动作上限 ≈2.4 m（未计转向）；每步需要一次完整观测（预热+推理 3.6–4.2 s+证明 0.4–0.5 s，有时因 `protected_changed` 重观测）≈4.5–5 s → **30 s 任务预算只够 ~6 步 ≈0.35 m**。G1 起点距广告牌 5–6 m，不可达。
+- 判定：**20 次任务当前不可执行**；需预算/包络修订（新版本 v6＋控制参数＋复核＋用户重新冻结）：①动作新鲜度 1500→约 3000–5000 ms（含 runtime/session/before_submit 三处硬编码 1500 上限）；②运动包络（duration/forward 可选档，维持单步有界、到期归零、急停优先）；③`task_timeout_s` 30→约 120–180 s（按每步 4.5–5 s×N 步推导，含重观测余量）；④必要时 `max_actions`。**不得放宽急停/租约/epoch/归零语义**；稳定性判据/遮罩/阈值与世界不变。
+- 边界：非复核；试点仍不计入 20 次；本轮 live 共 5 次推理调用（首次 $0.000811 + 本次 $0.003661）。
