@@ -378,6 +378,25 @@ vrc-agent logs               # T10 日志保留：默认只列出过期候选，
 - **每小时折算只是比例**：时长为 0 时任何速率都是 `None`（`NO_DATA`）；费用不完整时 `cost_per_hour_usd=None`（`COST_INCOMPLETE`）；运行时长不足 60 秒时给出「这是比例、不是实测速率」的 warning。
 - **保留策略默认不动手**：`logs` 不删任何东西，只有显式 `--apply` 才删除超过保留期的 `.jsonl`；不跟随符号链接，不进子目录。
 
+### 客户端与状态面（T13 提案，2026-10-18，未实现）
+
+本节只声明“客户端可以读什么、不可以走哪条通道”，不改变现有进程与控制权边界。
+
+**只读数据面**（客户端不得自行推断或缓存冒充实时值）：
+
+| 来源 | 字段 | 用途 |
+| --- | --- | --- |
+| 控制进程 `status` | `state`、`lease_id`、`lease_expires_ns`、`action_count`、`control_budget`、`lease_extensions` | 状态、租约倒计时、续租次数 |
+| 会话事件流 `.jsonl` | `stability_precheck`、`stability_rejected`、`stage_timing`、结局码 | 最近拒绝原因、分阶段耗时 |
+| 任务报告 | `outcome`、`run_parameters`、`usage`、`hourly`、`stage_timings` | 任务结果、花费与调用数 |
+| 环境探针 | VRChat 进程/窗口标题/可见性/分辨率与 DPI | 启动体检 |
+
+**禁止通道**：客户端不直接写 OSC、不直接操作 transport、不开启对外的控制端口。live 的 ARM/RESET/续租仍只由本机热键触发；UI 若需要按钮触发，必须走“本地交互来源”并在内核执行同样的焦点、按钮释放、未急停、未过期、次数与预算前置检查，且作为独立安全变更复核。
+
+**断开即停**：客户端与主代理的本地连接断开时，主代理按现有心跳规则停止控制进程（`HEARTBEAT_LOST` → `stop(emergency=True)`）；不得出现 UI 已退出而控制继续。
+
+**分期**：P1 只读监控＋引导（无安全改动）；P2 任务选择与历史/成本；P3 本地受信控制（需复核）。详见 [T13 客户端提案](validation/T13_client_ui_proposal.md)。
+
 ## 8. 阶段 1＋2 的实现细化
 
 - `control/core.py`：可注入时钟的确定性控制内核；`control/service.py`：spawn 子进程及有界收发队列；`control/platform.py`：单实例锁、Windows 热键/焦点及独立停止信号。
