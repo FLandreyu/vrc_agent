@@ -16,12 +16,14 @@ MASKED_MARGIN = (1400 / 2160, 100 / 1440, 1520 / 2160, 200 / 1440)
 
 def test_v5_version_hash_thresholds_and_old_behavior():
     policy, digest = load_policy("v5")
-    assert digest == "1cc4287a4c944ae898012e016ee21b591041f1eb7000041844312c3ec02de21c"
+    assert digest == "2e21c734ec902c44b3111de8f6f62f06626fbbe9410ff9a0b959469248eb4faa"
+    assert policy["status"] == "FROZEN"
     v4, _ = load_policy("v4")
     assert {k for k in set(v4) | set(policy) if v4.get(k) != policy.get(k)} == {
         "version",
         "metric",
         "protected_mask_policy",
+        "status",
     }
     a, b = pair(changes=[(1540, 150, 90)])
     # 原 F1 反例：v5 声明放行；v4 仍拒绝，v3 保持原结果。

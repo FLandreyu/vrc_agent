@@ -121,14 +121,21 @@ def test_v2_reports_cannot_mix_with_v1_or_hide_version(tmp_path):
     assert result["usage"]["complete"] is False
 
 
-def test_world_v2_does_not_enable_candidate_live(monkeypatch):
+@pytest.mark.parametrize("status", ["FROZEN", "REQUIRES_FIELD_CALIBRATION"])
+def test_world_v2_only_frozen_passes_policy_gate(monkeypatch, status):
     config = AppConfig(
         navigation_design="stable-inference-v5",
         perception={"provider": "openai_compat", "model": "synthetic", "budget_usd": 1.0},
     )
     monkeypatch.setattr(session, "load_config", lambda _: config)
 
+    policy, digest = session.load_policy("v5")
+    assert policy["status"] == "FROZEN"
+    monkeypatch.setattr(session, "load_policy", lambda _: ({**policy, "status": status}, digest))
+
     def sentinel(*args, **kwargs):
+        if status == "FROZEN":
+            raise RuntimeError("frozen policy gate passed")
         pytest.fail("candidate must reject before resources")
 
     for name in ("build_provider", "ControllerProcess", "live_capture"):
@@ -142,7 +149,12 @@ def test_world_v2_does_not_enable_candidate_live(monkeypatch):
         allow_paid=True,
         send_images=True,
     )
-    with pytest.raises(ValueError, match="field calibration"):
+    expected, message = (
+        (RuntimeError, "frozen policy gate passed")
+        if status == "FROZEN"
+        else (ValueError, "field calibration")
+    )
+    with pytest.raises(expected, match=message):
         asyncio.run(session.navigation_entry(args))
 
 

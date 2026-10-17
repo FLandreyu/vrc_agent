@@ -1,6 +1,6 @@
 {
   "version": "local-rgb-stability-v5-candidate",
-  "status": "REQUIRES_FIELD_CALIBRATION",
+  "status": "FROZEN",
   "frame_size": [
     2160,
     1440

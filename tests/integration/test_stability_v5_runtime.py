@@ -223,7 +223,7 @@ def test_v5_report_tampering_and_schema_isolation(tmp_path):
     assert len(session.summarize_reports(tmp_path)["invalid_files"]) == len(bad)
 
 
-@pytest.mark.parametrize("version", ["v1", "v2", "v3", "v4", "v5"])
+@pytest.mark.parametrize("version", ["v1", "v2", "v3", "v4"])
 def test_all_candidate_versions_rejected_before_resource_creation(monkeypatch, version):
     config = AppConfig(
         navigation_design="stable-inference-" + version,
@@ -248,12 +248,24 @@ def test_all_candidate_versions_rejected_before_resource_creation(monkeypatch, v
         asyncio.run(session.navigation_entry(args))
 
 
-def test_factory_and_runtime_candidate_rejection():
+def test_factory_and_runtime_only_frozen_can_live(monkeypatch):
     assert stable_navigation_class("v5") is StableNavigationV5
     with pytest.raises(ValueError, match="must match"):
         StableNavigation(policy_version="v5")
     client = MemoryClient(FakeClock())
     client.config = AppConfig(mode="live")
+    runtime, _, calls = assemble(client, client.clock)
+    assert runtime.policy["status"] == "FROZEN" and not calls and runtime.source is None
+    # 只构造内存控制替身，不启动真实live；候选状态回归仍应在任何采集/调用前失败。
+    import vrc_agent.live_navigation.stable_runtime as module
+
+    original = module.load_policy
+    policy, digest = original("v5")
+    monkeypatch.setattr(
+        module,
+        "load_policy",
+        lambda _: ({**policy, "status": "REQUIRES_FIELD_CALIBRATION"}, digest),
+    )
     with pytest.raises(ValueError, match="candidate stability"):
         assemble(client, client.clock)
 

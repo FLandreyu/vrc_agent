@@ -981,3 +981,9 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 - **发现三（JPEG q85 精度对照）**：.NET 将同帧转 JPEG q85（G3 348 KiB `EA82BBFF…`；G5 407 KiB `CB3E6990…`），同提示词探测：**G5 框与 PNG 逐值一致 `[0.09,0.42,0.93,0.89]`**；G3 框右缘 0.755→0.745（Δ1%，遮罩交叠 20 552→15 869 px²），label/uncertainties 语义不变；时延 2204/2526 ms。
 - 结论与待办：**建议把生产图像编码改为 JPEG（质量 ~85），保留 8000 ms 预算与全部判据/标定**；不改稳定性策略/世界/遮罩。属 provider/编码层改动：需加依赖并锁版本（当前 venv 无 Pillow）、实现 `bgra_jpeg`、provider 媒体类型与配置项、测试与文档。本会话**未改产品代码**。
 - 边界：不是复核；JPEG 精度仅两张参考帧验证（需 20 次任务继续观察）；G3 提示词此前 8.2–8.7 s 的稳定超时应在改编码后消失，但须实现后复测确认。
+
+## 65. v5 冻结实施（2026-10-17，独立提交①）
+
+- 负责人 Codex / root。冻结实施与自测已完成（独立提交①）；按第63节用户授权，v5只改status为FROZEN，版本名保留。v5新字节SHA256 **`2e21c734ec902c44b3111de8f6f62f06626fbbe9410ff9a0b959469248eb4faa`**，sidecar一致；阈值/遮罩/判据/提示不改，v1–v4及世界v1/v2 JSON和sidecar逐字节不变。`navigation-live.toml`显式选择stable-inference-v5，默认仍dry-run。见[冻结验证记录](validation/T08_v5_freeze.md)。GraphFlow工具不可用，按回退约定定向读取，未伪造context/plan/index。
+- 测试由固定候选拒绝改为FROZEN才通过状态门槛：双世界装配在provider/controller/capture前以哨兵验证；临时恢复候选状态仍拒绝，FROZEN运行时构造不触发采集/模型/发送。其余授权、ARM/lease/epoch门槛保持。四项门禁：**991 passed in126.55s**；ruff check通过；format133文件通过；pip check无依赖问题。日志`.runtime/verify/t08_freeze_{pytest,ruff,format,pip}.log`；冻结前快照与状态单字段审计见同目录`t08_freeze_before.json`/`t08_freeze_audit.json`。
+- 本次不启动live、不ARM、不调用付费模型、不发真实输入；是实现方交付，不是独立复核或实机验收。T08仍IN_PROGRESS；JPEG改造为下一独立提交，之后须生产同款延迟复测与固定20次真实任务，世界v2仍显式选择，不能据此宣称≥16/20或T10实机折算验收。
