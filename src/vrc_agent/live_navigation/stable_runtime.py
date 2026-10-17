@@ -377,6 +377,19 @@ class StableNavigationV6(StableNavigationV5):
         self.retry_reference = None
         self.control_snapshot = None
         self.extension_sequences = set()
+        self.attempt = 0
+        self.attempt_cycle = 0
+        self.retrying = False
+
+    def event(self, name, **fields):
+        if name in {"inference_source", "observation", "stability_rejected"}:
+            fields.update(attempt=self.attempt, attempt_cycle=self.attempt_cycle)
+        super().event(name, **fields)
+
+    async def fresh_proof(self, *args, **kwargs):
+        current, frame, proof = await super().fresh_proof(*args, **kwargs)
+        proof.update(attempt=self.attempt, attempt_cycle=self.attempt_cycle)
+        return current, frame, proof
 
     async def timed(self, stage, awaitable):
         started = self.clock.now_ns()
@@ -415,34 +428,51 @@ class StableNavigationV6(StableNavigationV5):
         return value
 
     async def observe(self, after_ns=None):
-        # 每次 observe（包括动作后）重建预热；只在本次重试内复用，不跨动作滚动参考。
-        self.retry_reference = None
-        return await super().observe(after_ns)
-
-    async def retry_observe(self):
-        # before_submit 拒绝后也不重启预热；两个原检查点均只增加拒绝。
+        if not self.retrying:
+            self.attempt = 0
+            self.attempt_cycle += 1
+        # observe 内与 before_submit 回调共用同一份预算，禁止嵌套循环放大为3×3。
+        while self.attempt < self.policy["max_inference_attempts"]:
+            try:
+                return await super().observe(after_ns)
+            except RuntimeHalt as exc:
+                if str(exc) != "SCENE_UNSTABLE":
+                    raise
         raise RuntimeHalt("SCENE_UNSTABLE")
 
+    async def retry_observe(self):
+        self.retrying = True
+        try:
+            return await self.observe()
+        finally:
+            self.retrying = False
+
     async def reference_capture(self, after_ns):
-        if self.retry_reference is not None:
-            # 模型后的复验已经拒绝，不重发同一推理源或重新预热来扩大预算。
+        if self.attempt >= self.policy["max_inference_attempts"]:
             raise RuntimeHalt("SCENE_UNSTABLE")
+        self.attempt += 1
+        self.retry_reference = None
+        self.event("stability_attempt", attempt=self.attempt, attempt_cycle=self.attempt_cycle)
         self.retry_reference = await super().reference_capture(after_ns)
         observation, frame, max_age = self.retry_reference
         evidence = self.evidence_entities(self.reference[2]) if self.reference else ()
         # 不拿预检帧作推理源，不新增派生链；原参考仍由两对连续预热直接证明。
-        # 一旦其超过新鲜度预算即拒绝，不靠重启整轮预热无限消耗任务时间。
-        for _ in range(self.policy["max_inference_attempts"]):
-            if not 0 <= self.clock.now_ns() - observation.captured_at_ns < max_age:
-                raise RuntimeHalt("SCENE_UNSTABLE")
-            _, _, proof = await self.fresh_proof(
-                observation, frame, after_ns=after_ns, entities=evidence
-            )
-            self.proofs.pop()  # 预检不是 after_inference / before_submit 执行证据。
-            self.prechecks.append(proof)
-            self.event("stability_precheck", accepted=self.accepted(proof))
-            if self.accepted(proof):
-                return observation, frame, max_age
+        # 每个 attempt 只做一次准入预检；拒绝后重新取证但不能增加三次共享预算。
+        if not 0 <= self.clock.now_ns() - observation.captured_at_ns < max_age:
+            raise RuntimeHalt("STALE_OBSERVATION")
+        _, _, proof = await self.fresh_proof(
+            observation, frame, after_ns=after_ns, entities=evidence
+        )
+        self.proofs.pop()  # 预检不是 after_inference / before_submit 执行证据。
+        self.prechecks.append(proof)
+        self.event(
+            "stability_precheck",
+            accepted=self.accepted(proof),
+            attempt=self.attempt,
+            attempt_cycle=self.attempt_cycle,
+        )
+        if self.accepted(proof):
+            return observation, frame, max_age
         raise RuntimeHalt("SCENE_UNSTABLE")
 
     async def run(self):
@@ -471,6 +501,7 @@ class StableNavigationV6(StableNavigationV5):
             budget, records = snapshot["control_budget"], snapshot["lease_extensions"]
         report["control_budget"] = budget
         report["lease_extensions"] = records
+        report["run_parameters"]["max_inference_attempts"] = self.policy["max_inference_attempts"]
         return report
 
 

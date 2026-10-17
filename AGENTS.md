@@ -32,6 +32,8 @@ context. Treat GraphFlow output as structured, token-saving context.
 
 ## 项目工作约定
 
+- **第81节后有界重试修复（2026-10-18，TASKS第83节）**：v6冻结文件不变；每周期最多3个共享attempt，重新预热/预检/推理，after_inference与before_submit失败可重试，三次失败才暂停；预检只增加拒绝，旧证据不跨attempt绑定。第77节拒绝即终止描述为历史。详见`docs/validation/T08_bounded_retry.md`；仅离线验证，现场由用户安排。
+
 - **第76节试点后修订（TASKS第77/78节）**：B提交 `d1aa93b` 添加只增加拒绝的预检与阶段耗时；v6任一原执行检查点拒绝后暂停，不重启预热，动作后仍2对预热。A新增本机Ctrl+F9人工EXTEND，默认max=0，现场配置30000ms×最多5次，基础30s＋扩展≤180s；不可自动续租，IPC/模型无此能力，过期不可复活，F8/epoch/TTL/归零优先。新v6报告schema9，历史7/8新字段隔离；冻结v6文件与判据/世界不变。详见 `docs/validation/T08_runtime_cost.md` / `T08_local_lease.md`。仅离线交付，待另派ADR-009复核与用户安排现场，T08仍IN_PROGRESS。
 
 - **最新 v6 机械冻结（2026-10-17，TASKS 第74节）**：依据第73节定向复核及用户明确授权，仅将 v6 状态改为 FROZEN，版本名仍为 `local-rgb-stability-v6-candidate`；新 SHA256 `e46e0c2816c6f512fbd4fd5e5c60ff1ef3fc4d0560e0e8b29d3b6a6315caa513`。v1–v5、世界、配置选择、判据/遮罩/数值、30秒租约和急停归零均不改。默认只读计划不等于实机通过；显式 live 与本机人工 ARM 门槛保留。T08 仍 IN_PROGRESS，固定20次任务未恢复。记录见 `docs/validation/T08_v6_freeze.md`；旧文中的 v6“待冻结/候选拒绝”仅为历史。

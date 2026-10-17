@@ -204,7 +204,16 @@ def _worker(connection, config_json: str, state_path: str, session_id: str) -> N
                 for event in events:
                     try:
                         if event == "arm":
-                            core.arm(avatar_valid and controls.focus_ok(bind=True))
+                            try:
+                                core.arm(avatar_valid and controls.focus_ok(bind=True))
+                            except ValueError:
+                                respond(
+                                    {
+                                        "notification": "arm_refused",
+                                        "message": "ARM refused: VRChat 未在前台或无焦点，或预检/状态不满足；请检查窗口与控制状态。",
+                                    }
+                                )
+                                raise
                         elif event == "reset":
                             core.reset()
                         elif event == "extend":
@@ -519,7 +528,7 @@ class ControllerProcess:
                 if not self.connection.poll(max(0, deadline - time.monotonic())):
                     break
                 response = json.loads(self.connection.recv_bytes(65536))
-                if response.get("notification") == "lease_extended":
+                if response.get("notification") in {"lease_extended", "arm_refused"}:
                     # 打印放在主代理侧；独立控制循环绝不等待控制台 I/O。
                     print(response["message"], flush=True)
                     continue

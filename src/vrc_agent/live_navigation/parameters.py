@@ -75,6 +75,8 @@ def validate_run_parameters(parameters, policy):
         "task_timeout_s": policy["task_timeout_s"],
         "max_actions": policy["max_actions"],
     }
+    if "max_inference_attempts" in parameters:
+        expected["max_inference_attempts"] = policy["max_inference_attempts"]
     # JSON严格比较避免True==1.0等数值等价绕过；只比较受信闭集，不回声载荷。
     try:
         matches = json.dumps(parameters, sort_keys=True, allow_nan=False) == json.dumps(

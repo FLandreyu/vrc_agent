@@ -132,9 +132,11 @@ def validate_stability_report(report):
         raise ValueError("invalid visible schema type")
     policy, digest = load_policy(version)
     if version == "v6" and schema == 9:
+        from .attempts import validate_attempts
         from .leases import validate_leases
 
         validate_leases(report, policy)
+        validate_attempts(report, policy)
     elif any(k in report for k in ("lease_extensions", "control_budget")) or any(
         e.get("event") == "lease_extended" for e in report["events"]
     ):

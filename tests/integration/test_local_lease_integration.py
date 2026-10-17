@@ -79,6 +79,23 @@ def test_console_notification_prints_in_parent_not_controller(monkeypatch, capsy
     assert "Lease extended: +30s (1/5), expires in 60s. F8=ESTOP" in capsys.readouterr().out
 
 
+def test_arm_refused_notice_without_permission_change(monkeypatch):
+    messages = []
+    queue_type = service.queue.Queue
+
+    class TracedQueue(queue_type):
+        def put_nowait(self, item):
+            if isinstance(item, dict) and item.get("notification") == "arm_refused":
+                messages.append(item)
+            return super().put_nowait(item)
+
+    monkeypatch.setattr(service.queue, "Queue", TracedQueue)
+    trace = run_worker([(0, ["arm"])], focus_lost_at=0)
+    assert messages and messages[0]["message"].startswith("ARM refused:")
+    assert not named(trace, "armed")
+    assert named(trace, "human_command_rejected")
+
+
 @pytest.fixture(scope="module")
 def extended_report():
     runtime, client, _ = assembly()

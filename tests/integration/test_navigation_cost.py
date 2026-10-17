@@ -1,4 +1,4 @@
-"""只用内存帧/模型：预检不替代执行检查点，拒绝不重新预热。"""
+"""只用内存帧/模型：共享三次预算，每次重试完整预热与检查。"""
 
 import asyncio
 import copy
@@ -32,10 +32,11 @@ def test_precheck_and_both_original_checkpoints_reject(changed_at, expected_call
 
     runtime.source_factory = factory
     report = asyncio.run(runtime.run())
-    assert report["outcome"] == "SCENE_UNSTABLE"
-    assert len(calls) == expected_calls
-    assert not report["actions"] and not client.transport.messages
-    assert len(report["warmup_checks"]) == 2
+    # 持久变化成为新参考后可以恢复；不再把首次拒绝当作必然终止。
+    assert report["outcome"] == "SUCCESS"
+    assert len(calls) >= expected_calls
+    assert len(report["warmup_checks"]) >= 4
+    assert report["run_parameters"]["max_inference_attempts"] == 3
     validate_stability_report(report)
 
 
