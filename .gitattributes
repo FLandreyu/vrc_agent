@@ -1,3 +1,5 @@
 # 只固定新v6工件的字节，不重写已冻结v1-v5或世界的CRLF口径。
 src/vrc_agent/live_navigation/stability_v6.json -text
 src/vrc_agent/live_navigation/stability_v6.sha256 -text
+src/vrc_agent/live_navigation/stability_v7.json -text
+src/vrc_agent/live_navigation/stability_v7.sha256 -text

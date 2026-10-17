@@ -217,6 +217,7 @@ class AppConfig(Contract):
         "stable-inference-v4",
         "stable-inference-v5",
         "stable-inference-v6",
+        "stable-inference-v7",
     ] = "legacy"
     navigation_motion_profile: Literal["cautious", "field"] = "cautious"
     mode: Literal["dry-run", "live"] = "dry-run"
@@ -231,23 +232,25 @@ class AppConfig(Contract):
     @model_validator(mode="after")
     def navigation_parameters(self):
         if self.control.lease_extension_max:
-            if self.navigation_design != "stable-inference-v6":
+            if self.navigation_design not in {"stable-inference-v6", "stable-inference-v7"}:
                 raise ValueError("local lease extensions require v6")
             from vrc_agent.live_navigation.stability import load_policy
 
-            budget = load_policy("v6")[0]["task_timeout_s"] * 1000
+            budget = (
+                load_policy(self.navigation_design.rsplit("-", 1)[-1])[0]["task_timeout_s"] * 1000
+            )
             if (
                 self.control.lease_ms
                 + self.control.lease_extension_ms * self.control.lease_extension_max
                 > budget
             ):
                 raise ValueError("lease base plus extensions exceeds task_timeout_s")
-        if self.navigation_design != "stable-inference-v6" and (
+        if self.navigation_design not in {"stable-inference-v6", "stable-inference-v7"} and (
             self.navigation_motion_profile != "cautious"
             or self.control.observation_max_age_ms > 1500
         ):
             raise ValueError("extended navigation parameters require v6")
-        if self.navigation_design == "stable-inference-v6":
+        if self.navigation_design in {"stable-inference-v6", "stable-inference-v7"}:
             required = 500 if self.navigation_motion_profile == "field" else 200
             if self.control.max_motion_ms < required:
                 raise ValueError(

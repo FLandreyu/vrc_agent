@@ -40,7 +40,7 @@ class StableNavigation(SupervisedNavigation):
         self.inference_ms = self.policy["inference_ms"]
         self.task_timeout_s = self.policy["task_timeout_s"]
         self.action_freshness_ms = action_freshness_ms(self.client.config, self.policy)
-        if policy_version == "v6":
+        if policy_version in {"v6", "v7"}:
             self.max_actions = self.policy["max_actions"]
         self.reference = None
         self.proofs = []
@@ -236,12 +236,12 @@ class StableNavigation(SupervisedNavigation):
     async def run(self):
         report = await super().run()
         report["navigation_design"] = "stable-inference-" + self.policy_version
-        report["schema_version"] = {"v1": 2, "v2": 3, "v3": 4, "v4": 5, "v5": 6, "v6": 7}[
+        report["schema_version"] = {"v1": 2, "v2": 3, "v3": 4, "v4": 5, "v5": 6, "v6": 7, "v7": 10}[
             self.policy_version
         ]
         report["stability_policy"] = {"digest": self.policy_digest, **self.policy}
         report["stability_proofs"] = self.proofs
-        if self.policy_version == "v6":
+        if self.policy_version in {"v6", "v7"}:
             report["run_parameters"] = {
                 "motion_profile": self.client.config.navigation_motion_profile,
                 "motion_envelope": asdict(self.motion_envelope),
@@ -505,6 +505,15 @@ class StableNavigationV6(StableNavigationV5):
         return report
 
 
+class StableNavigationV7(StableNavigationV6):
+    POLICY_VERSION = "v7"
+
+    async def run(self):
+        report = await super().run()
+        report["schema_version"] = 10
+        return report
+
+
 STABLE_NAVIGATION_CLASSES = {
     "v1": StableNavigation,
     "v2": StableNavigationV2,
@@ -512,6 +521,7 @@ STABLE_NAVIGATION_CLASSES = {
     "v4": StableNavigationV4,
     "v5": StableNavigationV5,
     "v6": StableNavigationV6,
+    "v7": StableNavigationV7,
 }
 
 

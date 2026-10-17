@@ -32,6 +32,8 @@ context. Treat GraphFlow output as structured, token-saving context.
 
 ## 项目工作约定
 
+- **v7仅候选（2026-10-18，TASKS第84节）**：新增目标标签`home_raccoon`零容差/其它可见证据框1000ppm的显式候选，schema10逐框差分可重算；v6/schema9不混用。v7摘要`fbebd9cbfd6d11988dd783ea83b7a4e8ef38c1b3ce236e435dcd20617cb2caf7`，状态REQUIRES_FIELD_CALIBRATION且拒绝live，默认现场配置仍v6/dry-run。不是冻结或实机验收，等待独立复核与用户冻结，见`docs/validation/T08_stability_v7_proposal.md`；旧版策略/世界/提示不动，不涉及第82节/UI。
+
 - **第81节后有界重试修复（2026-10-18，TASKS第83节）**：v6冻结文件不变；每周期最多3个共享attempt，重新预热/预检/推理，after_inference与before_submit失败可重试，三次失败才暂停；预检只增加拒绝，旧证据不跨attempt绑定。第77节拒绝即终止描述为历史。详见`docs/validation/T08_bounded_retry.md`；仅离线验证，现场由用户安排。
 
 - **第76节试点后修订（TASKS第77/78节）**：B提交 `d1aa93b` 添加只增加拒绝的预检与阶段耗时；v6任一原执行检查点拒绝后暂停，不重启预热，动作后仍2对预热。A新增本机Ctrl+F9人工EXTEND，默认max=0，现场配置30000ms×最多5次，基础30s＋扩展≤180s；不可自动续租，IPC/模型无此能力，过期不可复活，F8/epoch/TTL/归零优先。新v6报告schema9，历史7/8新字段隔离；冻结v6文件与判据/世界不变。详见 `docs/validation/T08_runtime_cost.md` / `T08_local_lease.md`。仅离线交付，待另派ADR-009复核与用户安排现场，T08仍IN_PROGRESS。

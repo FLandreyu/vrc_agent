@@ -6,7 +6,11 @@ def validate_attempts(report, policy):
         raise ValueError("missing attempt run parameters")
     if "max_inference_attempts" not in report.get("run_parameters", {}):
         # 历史 schema9 保留；新格式标识存在时不得缺失对应预算。
-        if any("attempt" in p for p in report.get("stability_prechecks", [])):
+        if (
+            policy["version"] == "local-rgb-stability-v7-candidate"
+            or any("attempt" in p for p in report.get("stability_prechecks", []))
+            or any(e.get("event") == "stability_attempt" for e in report["events"])
+        ):
             raise ValueError("missing attempt budget")
         return
     limit = report["run_parameters"]["max_inference_attempts"]

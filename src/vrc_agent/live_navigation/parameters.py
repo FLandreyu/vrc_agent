@@ -52,7 +52,11 @@ def profile_declarations():
 def action_freshness_ms(config, policy=None):
     # 旧策略维持1500ms；只有新版本声明预算可扩到5000ms配置上限。
     ceiling = (
-        5000 if policy and policy.get("version") == "local-rgb-stability-v6-candidate" else 1500
+        5000
+        if policy
+        and policy.get("version")
+        in {"local-rgb-stability-v6-candidate", "local-rgb-stability-v7-candidate"}
+        else 1500
     )
     return min(
         config.control.observation_max_age_ms,

@@ -8,12 +8,16 @@ from .parameters import validate_run_parameters
 from .stability import load_policy
 from .stability_v2 import protected_rectangles
 
-SCHEMAS = {"v1": 2, "v2": 3, "v3": 4, "v4": 5, "v5": 6, "v6": 9}
-WARMUP_VERSIONS = {"v2", "v3", "v4", "v5", "v6"}
+SCHEMAS = {"v1": 2, "v2": 3, "v3": 4, "v4": 5, "v5": 6, "v6": 9, "v7": 10}
+WARMUP_VERSIONS = {"v2", "v3", "v4", "v5", "v6", "v7"}
 
 
 def policy_verdict(metrics, policy):
     """按策略 metric 分派复验实现；未知 metric 不得静默通过。"""
+    if policy.get("version") == "local-rgb-stability-v7-candidate":
+        from .stability_v7 import verdict as verdict_v7
+
+        return verdict_v7(metrics, policy)
     metric = policy["metric"]
     if metric == "rgb_tolerance_local_guard_v2":
         from .stability_v2 import verdict
@@ -122,16 +126,23 @@ def validate_stability_report(report):
         "stable-inference-v4": "v4",
         "stable-inference-v5": "v5",
         "stable-inference-v6": "v6",
+        "stable-inference-v7": "v7",
     }.get(declared)
     schema = report.get("schema_version")
     if version is None or not (
         schema == SCHEMAS[version] or (version == "v6" and schema in {7, 8})
     ):
         raise ValueError("unknown navigation design")
-    if version in {"v5", "v6"} and type(report.get("schema_version")) is not int:
+    if version in {"v5", "v6", "v7"} and type(report.get("schema_version")) is not int:
         raise ValueError("invalid visible schema type")
     policy, digest = load_policy(version)
-    if version == "v6" and schema == 9:
+    if version != "v7" and any(
+        "changed_runs" in p or "evidence_regions" in p
+        for key in ("stability_proofs", "stability_prechecks", "warmup_checks")
+        for p in report.get(key, [])
+    ):
+        raise ValueError("v7 evidence requires schema10")
+    if (version == "v6" and schema == 9) or version == "v7":
         from .attempts import validate_attempts
         from .leases import validate_leases
 
@@ -141,7 +152,7 @@ def validate_stability_report(report):
         e.get("event") == "lease_extended" for e in report["events"]
     ):
         raise ValueError("lease report schema required")
-    if version == "v6" and schema in {8, 9}:
+    if (version == "v6" and schema in {8, 9}) or version == "v7":
         from .timings import validate_timings
 
         validate_timings(report)
@@ -158,7 +169,7 @@ def validate_stability_report(report):
         raise ValueError("timing schema required")
     if report.get("stability_policy") != {"digest": digest, **policy}:
         raise ValueError("stability policy mismatch")
-    if version == "v6":
+    if version in {"v6", "v7"}:
         policy = validate_run_parameters(report.get("run_parameters"), policy)
         if policy["status"] != "FROZEN" and (
             report.get("mode") == "live" or report.get("sends_live_input") is True
@@ -176,7 +187,7 @@ def validate_stability_report(report):
             if key in mapping:
                 raise ValueError("duplicate stability observation")
             mapping[key] = event
-    if version == "v6" and schema in {8, 9}:
+    if (version == "v6" and schema in {8, 9}) or version == "v7":
         for key, source in sources.items():
             if not any(
                 p["reference_observation_id"] == key
@@ -187,7 +198,7 @@ def validate_stability_report(report):
                 raise ValueError("inference source missing accepted precheck")
     if version in WARMUP_VERSIONS:
         validate_warmup(report, sources, policy, digest, version)
-    if version in {"v5", "v6"}:
+    if version in {"v5", "v6", "v7"}:
         from .stability_v5 import audit_entities, verify_audit
 
         for source in sources.values():
@@ -227,8 +238,12 @@ def validate_stability_report(report):
                 list(r) for r in protected_rectangles(entities, policy)
             ]:
                 raise ValueError("protected evidence regions mismatch")
-            if version in {"v5", "v6"}:
+            if version in {"v5", "v6", "v7"}:
                 verify_audit(proof, audit_entities(entities, policy))
+        if version == "v7":
+            from .stability_v7 import verify_regions
+
+            verify_regions(proof, entities, policy)
         if is_stable:
             accepted[proof["current_observation_id"]] = proof
             if "validates_observation_id" in proof:

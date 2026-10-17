@@ -45,10 +45,9 @@ class SupervisedNavigation:
         self.client, self.source_factory, self.perception = client, source_factory, perception
         self.world, self.task = world, task
         self.clock = clock or SystemClock()
-        if (
-            client.config.navigation_motion_profile != "cautious"
-            and getattr(self, "POLICY_VERSION", None) != "v6"
-        ):
+        if client.config.navigation_motion_profile != "cautious" and getattr(
+            self, "POLICY_VERSION", None
+        ) not in {"v6", "v7"}:
             raise ValueError("field motion envelope requires v6 runtime")
         self.skill = CalibratedSkill(
             world.landmark(task.group), profile=client.config.navigation_motion_profile
