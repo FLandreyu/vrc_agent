@@ -976,7 +976,7 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 ## 64. 延迟复测与图片格式对照：生产 PNG 编码是时延瓶颈（2026-10-17，现场会话；非复核）
 
 - 方法：`t08_latency_recheck.py`（`CB41B5BC…`）按生产同款请求（thinking disabled、max_tokens 1024、json_object、G1–G5 轮转 3 轮）跑 15 次；`t08_format_ab.py`（`DF17F303…`）做同提示词×异格式对照。结果 JSON：`t08_latency_recheck_20261017_130132.json`（`7B35EF05…`）、`t08_format_ab_20261017_130315.json`（`53368A9C…`）、JPEG 精度对比 `t08_v4_model_probe_20261017_130337.json`（`DAE80124…`）。
-- **发现一（延迟分布）**：15 次全部可解析（0 空 content）；wall_ms min 1821 / **p50 2517** / p90 895 / p95 8684 / **max 8805**；**4/15 超 8000 ms 预算**。分组：G1/G2/G4（旧 JPG 参考）1.8–2.9 s；**G3/G5（新 PNG 参考）稳定 7.2–8.8 s**。
+- **发现一（延迟分布）**：15 次全部可解析（0 空 content）；wall_ms min 1821 / **p50 2517** / p90 8684 / p95 8684 / **max 8805**；**4/15 超 8000 ms 预算**。分组：G1/G2/G4（旧 JPG 参考）1.8–2.9 s；**G3/G5（新 PNG 参考）稳定 7.2–8.8 s**。
 - **发现二（根因：图片格式/体积）**：同提示词异格式对照——G3 提示词：PNG 5762 KiB → 7856/7038 ms，JPEG 547 KiB → 2702/2565 ms；G5 提示词：PNG 5363 KiB → 6754/6433 ms，JPEG 265 KiB → 2459/1576 ms。**生产 `observe()` 用自研 `bgra_png` 发全尺寸 PNG（≈5.4–5.8 MB/帧）是时延主因**；第 33 节 3.4 s 基线与 8000 ms 预算基于 JPG 参考图测量，与实际生产编码不一致。
 - **发现三（JPEG q85 精度对照）**：.NET 将同帧转 JPEG q85（G3 348 KiB `EA82BBFF…`；G5 407 KiB `CB3E6990…`），同提示词探测：**G5 框与 PNG 逐值一致 `[0.09,0.42,0.93,0.89]`**；G3 框右缘 0.755→0.745（Δ1%，遮罩交叠 20 552→15 869 px²），label/uncertainties 语义不变；时延 2204/2526 ms。
 - 结论与待办：**建议把生产图像编码改为 JPEG（质量 ~85），保留 8000 ms 预算与全部判据/标定**；不改稳定性策略/世界/遮罩。属 provider/编码层改动：需加依赖并锁版本（当前 venv 无 Pillow）、实现 `bgra_jpeg`、provider 媒体类型与配置项、测试与文档。本会话**未改产品代码**。
