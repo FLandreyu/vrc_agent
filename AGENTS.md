@@ -47,6 +47,8 @@ context. Treat GraphFlow output as structured, token-saving context.
 
 ## 当前开发命令与边界
 
+- **试点集成修复见 TASKS第70节（对照第69节）**：F-B仅在after_ns路径共用≤1500ms窗口、最多50次/30ms等待严格更新的帧，无after_ns保持立即拒绝；超龄/未来/权限/焦点等异常仍拒绝，废弃帧不进控制层。F-A新增共享运行时提示runtime-clearance-v1，说明原clearance几何/置信度/当前帧证据及正反例，不能编造或扩框；不修改clearance门槛、稳定性策略/遮罩/阈值、世界v1/v2、live配置。四项门禁1076 passed/ruff/format137/pip通过，源码/提示/报告哈希见`docs/validation/T08_pilot_integration_fix.md`；实现方交付不等于独立复核或实机模型遵从，试点不计入20项批次，T08仍IN_PROGRESS。
+
 - **JPEG q85 编码交付见 TASKS 第66节及 `docs/validation/T08_jpeg_encoding.md`**：现场配置显式 `image_format="jpeg"` / `jpeg_quality=85`，通用默认PNG兼容旧配置。Pillow精确锁定13.0.0，编码只在内存进行；稳定性比较仍使用原始BGRA，1000ms编码/8000ms推理和全部判据/提示/世界不改。冻结策略摘要仍 `2e21c734…`。本轮是离线验证，生产同款延迟/模型语义与20次任务待现场验证；下文第65节中的JPEG“另行交付”已由本节接续。**2026-10-17 已由另一执行者按 ADR-009 定向确认（TASKS 第68节，[记录](docs/validation/T08_v5_freeze_jpeg_review.md)）：FROZEN 门槛、JPEG 链路、隐私/发送面三组声明主体未能证伪、无阻断项**（自建探针 36 项 0 失败；复核者复跑 1021 passed in 154.26s；两项非阻断观察——N1 稳定性摘要按工作树 CRLF 字节口径、用 git blob 直接复算得不同摘要，N2 缺密钥文案含配置变量名且为既有行为）；仍未实机验收，20 次任务未执行。
 
 - **最新冻结实施以 TASKS 第65节为准**：依据第63节用户决定，v5 状态已为 `FROZEN`，新字节 SHA256 `2e21c734ec902c44b3111de8f6f62f06626fbbe9410ff9a0b959469248eb4faa`；版本名保留 `local-rgb-stability-v5-candidate`，不以改名改变判据。`navigation-live.toml` 显式选择 `stable-inference-v5`，仍默认 dry-run；显式 live、授权和本机 F9 门槛仍须满足。世界 v2 已获用户冻结授权，仍须 `--world-version v2` 显式选用（默认 v1）。下文“v5 候选拒绝 live／待用户冻结”均为历史。冻结不是实机验收，T08 仍 IN_PROGRESS；第64节 JPEG 编码改造已由第66节交付并经第68节定向确认，生产同款延迟复测与20次真实任务仍待现场。

@@ -1024,3 +1024,12 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 - **F-B（动作后抓帧竞态）**：wait 完成后 `observe(after_ns=finished_at_ns)` 的首次抓帧触发 `capture()` 的 `STALE_OBSERVATION`（重复观测 ID / ≤last_capture / ≤after_ns 任一即中止）。100 ms 动作结束时最新帧可能尚未严格晚于 `finished_at_ns` → 立即判死。属运行时抓帧时序，不是判据问题。
 - 判定：两项均为**集成层问题**（不涉及稳定性判据/遮罩/阈值/世界）；修复需实现方（F-B 抓帧等待或有限重试；F-A 提示词明确 clearance 几何/示例，或经复核调整 clearance 门槛——**不得静默放宽安全要求**），按冻结纪律走复核，必要时用户重新冻结。**20 次任务暂停，本次不计入批次**。
 - 边界：试点失败记录，不是验收结论；世界 v2/v5 摘要、live 配置、判据均未改动；未继续执行其余 19 个任务。
+
+## 70. 试点 F-B / F-A 集成修复（2026-10-17）
+
+- 负责人 Codex / root。**两项修复实现及自测交付完成；非ADR-009独立复核或现场验收，T08仍IN_PROGRESS。** 对照第69节和用户指令；[集成修复验证记录](validation/T08_pilot_integration_fix.md)。本轮不继续真实live/付费调用/ARM/20次任务。GraphFlow工具不可用，按约定定向读取；沙箱执行器Windows740，命令已通过自动审批使用可用执行器。
+- **F-B**：仅after_ns路径共用本次capture起始加`min(1500, observation_max_age_ms)`毫秒截止期，最多50次、30ms间隔，丢弃年龄合格但ID重复/时间不严格递增或不晚于动作完成的候选，直至真正新帧；候选不登记为已接受、不进入控制层/模型，不改ID/采集时间。无after_ns仍首次立即拒绝；超龄/未来、epoch/焦点/尺寸/缺帧等异常不重试，等待中急停/接管/lease/epoch及任务截止保持原检查；整次等待不逐帧续期，单次采集仍1000ms。
+- **F-A**：新共享运行时提示`runtime-clearance-v1`明确原几何`x1<=0.35,x2>=0.65,y1<=0.7,y2>=0.9`、置信度>=0.9、当前帧证据，含条件正例/三类反例；不得抄例、扩框、编造置信度或凭无hazard猜可走，缺证据仍wait，第3次缺证据决策置PATH_UNSAFE（实际仅提交前2次wait）。recovery仍须双侧木地板额外正面证据。`CalibratedSkill`整个类AST与基线`353175d7…`一致；世界v1/v2及addendum、v1–v5策略/摘要/比较与报告代码、live配置/依赖/控制/传输/provider均未改。有效提示已变化且有独立版本/摘要，不以世界摘要不变冒充提示未变。
+- 新增55项回归：采集与完整闭环22项、提示/原门槛33项；定向**55 passed in12.94s**。最终四项门禁全绿：**1076 passed in282.17s**、ruff check通过、format137文件通过、pip check无依赖问题。日志`.runtime/verify/t08_pilot_{targeted,pytest,ruff,format,pip}.log`。两条world v2+v5+JPEG85+G2-1完整合成报告通过复验：有合法clearance为SUCCESS、无clearance为PATH_UNSAFE；均注入动作后等于finished_at_ns的竞态帧再恢复、最终PAUSED/归零且sends_live_input=false；不是实机或模型遵从证据。
+- 交付字节SHA256：`runtime.py` **`26ca82972e507676c143a7561d12fa9dbc12b7b28012754015cce86bed9fdaea`**，`skill.py` **`8f7aa315fe85335da524f65db25cf8d85a241d9a45f66e41bcc515feff876b8b`**；共享指导UTF-8 SHA256 **`fceef13937071dc9e9bbe9913a419f190fccb4beb73998dbc5c15595e08db821`**。审计`.runtime/verify/t08_pilot_delivery.json` SHA256 **`5a3d1186aabcbc4ee0cbb3b8b62fa8badff1c3e338a0de5ef9a4bd7bf99590af`**，含22个受保护文件字节摘要、10个有效提示摘要、测试/报告/日志哈希与不变项检查。冻结v5仍`2e21c734…`，世界v2仍`b65b3dab…`。
+- 下一步：另一执行者按ADR-009定向复核F-B有限性/新鲜度/急停与F-A提示/门槛一致性及不变项→按冻结纪律现场确认新提示语义与生产时延→再恢复固定20次任务。第69节试点仍不计入批次，未执行其余19项；不得据此宣称实机已修复、≥16/20或T10实机折算已验收。

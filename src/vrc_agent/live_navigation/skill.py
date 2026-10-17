@@ -7,6 +7,31 @@ from vrc_agent.skills.world import NavigationLimits
 
 from .world import LiveLandmark
 
+CLEARANCE_GUIDANCE_VERSION = "runtime-clearance-v1"
+CLEARANCE_GUIDANCE = (
+    "Runtime clearance observation contract (runtime-clearance-v1): "
+    "Always inspect the visible foreground floor for forward_clearance, but emitting an "
+    "entity is conditional on positive visual evidence, never mandatory. "
+    "Coordinates are normalized to the full image, origin top-left. "
+    "The runtime requires a directly visible unobstructed walkable floor bbox covering "
+    "the lower forward corridor: x1<=0.35, x2>=0.65, y1<=0.7, y2>=0.9, "
+    "confidence>=0.9, with evidence_observation_id equal to the current frame ID. "
+    "Positive example ONLY if that floor is actually visible and safe: "
+    '{"label":"forward_clearance","bbox":[0.1,0.55,0.9,0.98],"confidence":0.95}; '
+    "supply the normal track_id and actual current evidence_observation_id. "
+    "Negative examples: [0.4,0.55,0.6,0.98] is too narrow; "
+    "[0.1,0.2,0.9,0.6] does not reach the lower corridor; "
+    "[0.1,0.75,0.9,0.98] does not cover its upper boundary. "
+    "Do not stretch, extrapolate, merge across obstacles, copy example boxes or invent "
+    "confidence to satisfy these requirements. A full-image box is not evidence of floor. "
+    "If furniture, walls, people, steps, a drop, water or uncertain depth obstruct the "
+    "corridor, omit forward_clearance and describe the hazard/uncertainty instead. "
+    "No clearance is a valid observation: the runtime will wait or pause. "
+    "recovery_clearance requires the same bbox geometry and confidence plus visibly open "
+    "wooden floor with safe space for BOTH lateral short steps; forward clearance alone "
+    "does not establish recovery clearance. Never infer walkability from absent hazards."
+)
+
 
 class CalibratedSkill(NavigationSkill):
     def __init__(self, landmark: LiveLandmark):
@@ -74,7 +99,7 @@ def calibrated_prompt(landmark: LiveLandmark) -> str:
         "Do not invent missing or occluded boundaries. Ignore HUD, portable mirror and "
         "reflection contents. For Avatar Mirror bound the physical wooden panel frame. "
         "For floor pattern bound its visible cyan/white nested diamond, not the whole pool. "
-        "Optionally label forward_clearance ONLY for visibly unobstructed walkable floor "
+        "Inspect and label forward_clearance ONLY for visibly unobstructed walkable floor "
         "directly ahead; label recovery_clearance ONLY for open wooden floor with clear "
         "space for BOTH lateral short steps. These boxes must bound the visible floor. "
         f"Local restriction: {landmark.recovery_zone}. "
@@ -83,4 +108,9 @@ def calibrated_prompt(landmark: LiveLandmark) -> str:
         "Never report SUCCESS, actions, safety thresholds or authority fields."
     )
     addendum = getattr(landmark, "prompt_addendum", "")
-    return prompt + ("\nWorld-specific observation guidance: " + addendum if addendum else "")
+    return (
+        prompt
+        + ("\nWorld-specific observation guidance: " + addendum if addendum else "")
+        + "\n"
+        + CLEARANCE_GUIDANCE
+    )

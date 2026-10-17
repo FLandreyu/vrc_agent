@@ -119,6 +119,28 @@ class SupervisedNavigation:
                 task.exception()
 
     async def capture(self, after_ns=None):
+        max_age = min(1500, self.client.config.control.observation_max_age_ms) * 1_000_000
+        if after_ns is None:
+            return await self._capture_once(after_ns, max_age)
+
+        # 动作结束与采集发布存在竞态。只丢弃未严格更新的候选，不重写时间/ID；
+        # 整个等待共用一个截止期，不能逐帧重置1500ms窗口或跳过授权检查。
+        retry_until_ns = self.clock.now_ns() + max_age
+
+        async def wait_for_new_frame():
+            for attempt in range(50):
+                captured = await self._capture_once(after_ns, max_age, retry_until_ns)
+                if captured is not None:
+                    return captured
+                if attempt < 49:
+                    await asyncio.sleep(0.03)
+            raise RuntimeHalt("STALE_OBSERVATION")
+
+        return await self.bounded(
+            wait_for_new_frame(), ms=max_age / 1_000_000, reason="STALE_OBSERVATION"
+        )
+
+    async def _capture_once(self, after_ns, max_age, retry_until_ns=None):
         observation = await self.bounded(
             asyncio.to_thread(self.source.next_observation), ms=1000, reason="CAPTURE_TIMEOUT"
         )
@@ -128,21 +150,23 @@ class SupervisedNavigation:
             or observation.environment_epoch != snapshot["environment_epoch"]
         ):
             raise RuntimeHalt("EPOCH_MISMATCH")
-        now = self.clock.now_ns()
-        max_age = min(1500, self.client.config.control.observation_max_age_ms) * 1_000_000
-        if (
-            observation.observation_id in self.seen
-            or observation.captured_at_ns <= self.last_capture
-            or not 0 <= now - observation.captured_at_ns < max_age
-            or (after_ns is not None and observation.captured_at_ns <= after_ns)
-        ):
-            raise RuntimeHalt("STALE_OBSERVATION")
-        self.seen.add(observation.observation_id)
-        self.last_capture = observation.captured_at_ns
         if observation.window_state != "visible" or observation.frame_ref is None:
             raise RuntimeHalt("FOCUS_LOST")
         if observation.frame_size != self.world.frame_size:
             raise RuntimeHalt("CALIBRATION_MISMATCH")
+        now = self.clock.now_ns()
+        if not 0 <= now - observation.captured_at_ns < max_age or (
+            retry_until_ns is not None and now >= retry_until_ns
+        ):
+            raise RuntimeHalt("STALE_OBSERVATION")
+        if (
+            observation.observation_id in self.seen
+            or observation.captured_at_ns <= self.last_capture
+            or (after_ns is not None and observation.captured_at_ns <= after_ns)
+        ):
+            if retry_until_ns is not None:
+                return None
+            raise RuntimeHalt("STALE_OBSERVATION")
         frame = self.source.frame_for(observation)
         if (
             frame is None
@@ -151,6 +175,8 @@ class SupervisedNavigation:
             or frame.size != observation.frame_size
         ):
             raise RuntimeHalt("MISSING_FRAME")
+        self.seen.add(observation.observation_id)
+        self.last_capture = observation.captured_at_ns
         if not await self.rpc("observe", observation.model_dump(mode="json")):
             raise RuntimeHalt("STALE_OBSERVATION")
         return observation, frame, max_age
