@@ -32,6 +32,8 @@ context. Treat GraphFlow output as structured, token-saving context.
 
 ## 项目工作约定
 
+- **最新 v6 机械冻结（2026-10-17，TASKS 第74节）**：依据第73节定向复核及用户明确授权，仅将 v6 状态改为 FROZEN，版本名仍为 `local-rgb-stability-v6-candidate`；新 SHA256 `e46e0c2816c6f512fbd4fd5e5c60ff1ef3fc4d0560e0e8b29d3b6a6315caa513`。v1–v5、世界、配置选择、判据/遮罩/数值、30秒租约和急停归零均不改。默认只读计划不等于实机通过；显式 live 与本机人工 ARM 门槛保留。T08 仍 IN_PROGRESS，固定20次任务未恢复。记录见 `docs/validation/T08_v6_freeze.md`；旧文中的 v6“待冻结/候选拒绝”仅为历史。
+
 - 目标、范围和阶段门槛以 `docs/DEVELOPMENT_PLAN.md` 为准；接口以 `docs/ARCHITECTURE.md` 为准；任务状态和交接以 `docs/TASKS.md` 为准。冲突时先修正文档，不得静默改变产品范围。
 - 开始工作前读取当前任务及其依赖，标记 `IN_PROGRESS` 并填写负责人；完成后记录具体修改、验证命令、结果和下一步。不要将计划或模拟结果写成已实现能力。
 - 本项目绝对路径为 `D:\vrc_agent`。换机器时使用实际项目路径，不硬编码用户目录。

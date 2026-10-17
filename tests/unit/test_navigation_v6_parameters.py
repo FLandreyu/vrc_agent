@@ -34,16 +34,19 @@ def test_v6_digest_and_exact_budget_only_difference():
     v5, old_digest = load_policy("v5")
     v6, digest = load_policy("v6")
     assert old_digest == "2e21c734ec902c44b3111de8f6f62f06626fbbe9410ff9a0b959469248eb4faa"
-    assert digest == "63cdd1d179f9e03bd74df16fe1d37752606555336c639f22cd653fd6dd17e11c"
+    assert digest == "e46e0c2816c6f512fbd4fd5e5c60ff1ef3fc4d0560e0e8b29d3b6a6315caa513"
     assert {k for k in v5.keys() | v6.keys() if v5.get(k) != v6.get(k)} == {
         "version",
-        "status",
         "freshness_ms",
         "task_timeout_s",
         "motion_profiles",
     }
     assert v6["freshness_ms"] == 4000 and v6["task_timeout_s"] == 180.0 and v6["max_actions"] == 40
-    assert v6["status"] == "REQUIRES_FIELD_CALIBRATION"
+    assert v6["status"] == "FROZEN"
+    for version in ("v1", "v2", "v3", "v4", "v5"):
+        assert load_policy(version)[0]["status"] == (
+            "FROZEN" if version == "v5" else "REQUIRES_FIELD_CALIBRATION"
+        )
     assert v6["motion_profiles"] == profile_declarations()
     for change in ([], [(1450, 150, 90)], [(1540, 150, 90)]):
         frames = pair(changes=change)

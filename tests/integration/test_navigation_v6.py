@@ -68,7 +68,7 @@ def assert_zero(client):
 
 
 @pytest.mark.parametrize("profile,value,duration", [("cautious", 0.2, 200), ("field", 0.4, 500)])
-def test_v6_closed_loop_profiles_and_schema_isolation(profile, value, duration):
+def test_v6_closed_loop_profiles_and_schema_isolation(profile, value, duration, monkeypatch):
     runtime, client, calls = assembly(profile)
     report = asyncio.run(runtime.run())
     assert report["outcome"] == "SUCCESS" and calls and report["schema_version"] == 7
@@ -87,12 +87,25 @@ def test_v6_closed_loop_profiles_and_schema_isolation(profile, value, duration):
         {"schema_version": 7.0},
         {"navigation_design": "stable-inference-v5"},
         {"run_parameters": None},
-        {"mode": "live"},
-        {"sends_live_input": True},
     ):
         bad = {**copy.deepcopy(report), **patch}
         with pytest.raises(ValueError):
             validate_stability_report(bad)
+    # 候选仍不得报告 live；冻结后不再用实际冻结状态冒充候选。
+    from vrc_agent.live_navigation import stability_report
+
+    policy, digest = load_policy("v6")
+    with monkeypatch.context() as patcher:
+        patcher.setattr(
+            stability_report,
+            "load_policy",
+            lambda _: ({**policy, "status": "REQUIRES_FIELD_CALIBRATION"}, digest),
+        )
+        for patch in ({"mode": "live"}, {"sends_live_input": True}):
+            bad = {**copy.deepcopy(report), **patch}
+            bad["stability_policy"]["status"] = "REQUIRES_FIELD_CALIBRATION"
+            with pytest.raises(ValueError, match="candidate"):
+                validate_stability_report(bad)
     assert_zero(client)
     assert report["sends_live_input"] is False
     path = Path(".runtime/verify") / f"t08_v6-{profile}-{client.session_id}.json"
@@ -197,7 +210,10 @@ def test_runtime_capture_and_before_submit_use_same_4000ms_budget():
     asyncio.run(drive())
 
 
-def test_candidates_reject_before_provider_and_session_freshness_wiring(monkeypatch, tmp_path):
+@pytest.mark.parametrize("status", ["FROZEN", "REQUIRES_FIELD_CALIBRATION"])
+def test_candidates_reject_before_provider_and_session_freshness_wiring(
+    monkeypatch, tmp_path, status
+):
     cfg = config().model_copy(
         update={
             "perception": config().perception.model_copy(
@@ -221,10 +237,15 @@ def test_candidates_reject_before_provider_and_session_freshness_wiring(monkeypa
         pytest.fail("candidate must reject before resource creation")
 
     monkeypatch.setattr(session, "build_provider", forbidden)
-    with pytest.raises(ValueError, match="field calibration"):
-        asyncio.run(session.navigation_entry(args))
     policy, digest = load_policy("v6")
-    monkeypatch.setattr(session, "load_policy", lambda _: ({**policy, "status": "FROZEN"}, digest))
+    assert policy["status"] == "FROZEN"
+    monkeypatch.setattr(session, "load_policy", lambda _: ({**policy, "status": status}, digest))
+    if status != "FROZEN":
+        monkeypatch.setattr(session, "Perception", forbidden)
+        monkeypatch.setattr(session, "ControllerProcess", forbidden)
+        with pytest.raises(ValueError, match="field calibration"):
+            asyncio.run(session.navigation_entry(args))
+        return
     monkeypatch.setattr(session, "build_provider", lambda *a, **kw: object())
     captured = []
     monkeypatch.setattr(session, "Perception", lambda *a, **kw: captured.append(kw))
@@ -250,9 +271,20 @@ def test_factory_cannot_route_v6_through_older_base():
 
 
 @pytest.mark.parametrize("profile", ["cautious", "field"])
-def test_v6_runtime_candidate_refuses_live_before_capture(profile):
+def test_v6_runtime_only_frozen_allows_live_before_capture(profile, monkeypatch):
     runtime, client, calls = assembly(profile)
     client.config = client.config.model_copy(update={"mode": "live"})
+    frozen = StableNavigationV6(client, None, None, runtime.world, runtime.task, clock=client.clock)
+    assert frozen.source is None and not calls and not client.transport.messages
+    from vrc_agent.live_navigation import stable_runtime
+
+    policy, digest = load_policy("v6")
+    assert policy["status"] == "FROZEN"
+    monkeypatch.setattr(
+        stable_runtime,
+        "load_policy",
+        lambda _: ({**policy, "status": "REQUIRES_FIELD_CALIBRATION"}, digest),
+    )
     with pytest.raises(ValueError, match="candidate"):
         StableNavigationV6(client, None, None, runtime.world, runtime.task, clock=client.clock)
     assert not calls and not client.transport.messages
