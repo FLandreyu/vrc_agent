@@ -30,7 +30,7 @@ from .world import load_live_world
 
 
 async def navigation_entry(args):
-    world = load_live_world()
+    world = load_live_world(getattr(args, "world_version", "v1"))
     task = world.task(args.task)
     landmark = world.landmark(task.group)
     if args.mode != "live":
@@ -134,7 +134,7 @@ async def navigation_entry(args):
     return report
 
 
-def summarize_reports(directory: Path) -> dict:
+def summarize_reports(directory: Path, *, world_version="v1") -> dict:
     """汇总一批实机报告；逐份严格校验来源、台账与时间戳（复核 R5）。
 
     坏样本（来源不符、outcome 非字符串、台账非法、时间戳无时区或倒序）整份计入
@@ -143,7 +143,7 @@ def summarize_reports(directory: Path) -> dict:
     时长与用量的覆盖情况分别用 `duration_complete`、`usage.complete` 与
     `hourly.coverage` 如实标出，不再出现「分子有、分母无」的折算。
     """
-    world = load_live_world()
+    world = load_live_world(world_version)
     grouped = defaultdict(list)
     invalid: list[str] = []
     invalid_reasons: list[str] = []
@@ -158,6 +158,11 @@ def summarize_reports(directory: Path) -> dict:
                 or report.get("sends_live_input") is not True
             ):
                 raise ValueError("report provenance mismatch")
+            # v2 报告必须显式声明版本；v1 兼容早期未携带版本字段的报告。
+            if (world_version == "v2" or "world_version" in report) and report.get(
+                "world_version"
+            ) != world.version:
+                raise ValueError("report world version mismatch")
             task = world.task(report.get("task_id"))
             validate_stability_report(report)
             if not isinstance(report.get("outcome"), str):
@@ -251,6 +256,12 @@ def _aware_stamp(value: object, name: str) -> datetime | None:
 def verified_success(world, report):
     """汇总也复验数值证据；不是日志的数字签名或人工现场确认。"""
     try:
+        if report.get("suite_digest") != world.digest():
+            return False
+        if (world.version != "vrchat-home-live-v1" or "world_version" in report) and report.get(
+            "world_version"
+        ) != world.version:
+            return False
         if report.get("calibration_confirmed") is not True or report.get("final_state") != "PAUSED":
             return False
         result = ActionResult.model_validate_json(json.dumps(report["results"][-1]))

@@ -285,6 +285,8 @@ live 与 replay 由**同一个状态机**实现（`capture/source.py` 的 `Windo
 
 2026-10-17 按 TASKS 第 54/55 节新增 v5 候选（schema=6、`stable-inference-v5`，指标 `rgb_tolerance_visible_guard_v5`，保护语义 `exclude_masked`）：**只保护未遮罩的证据像素**，部分交叠为声明放行，不保证遮罩内部稳定。比较器/运行时/报告复验均拒绝每个完全不可见的原 bbox 或外扩保护框，并按并集记 `entity_masked_px`、`protected_masked_px`、`protected_visible_px` 以及原框/保护矩形；来源事件与 proof 的审计须同实体重算相符。v5 的矩形几何和 schema 类型严格校验独立生效，v1–v4 文件、摘要及判据源码不改；5%/Δ≤2/黑帧/预热和控制边界不变，候选仍拒绝 live。详见 [v5 验证记录](validation/T08_stability_v5.md)。世界 v2 和 G3/G5 提示修改仅为[未批准提案](validation/T08_world_v2_proposal.md)，离线提案加载器不会接入生产世界选择。
 
+2026-10-17 根据 TASKS 第59节及用户定案新增世界 `vrchat-home-live-v2`（世界 schema=2，与稳定性 proof schema=6 分开）：G3 box 到达尺寸0.50/0.52及新激活前参考、G5仅替换到达参考而保留 lower_half 判据，G3/G5 提示追加内容作为地标字段纳入世界摘要。`load_live_world("v2")` 显式加载 v2；默认仍 v1，v1 JSON/摘要与提示文本保持不变。`navigate-live` / `navigation-report` 新增 `--world-version v2`；汇总只接收选定世界的摘要，v2须声明正确版本，成功复验也检查版本/摘要，不混用到达规则。20项任务清单不改；此世界实现未改变候选稳定性策略的 live 拒绝、ARM 或观测安全门槛。详见 [世界 v2 实现与验证](validation/T08_world_v2.md)；此前的世界v2提案为历史建议，本次定案取代其中G3尺寸建议。
+
 初始可配置值：动作上限 500 ms、控制循环 50 Hz、主代理心跳间隔 100 ms、心跳超时 500 ms、运动观测最大年龄 1500 ms。它们是保守起点，按测量调整，不是已实现性能。
 
 - 运动通道单独占用；一次只执行一个 motion/interact。每个动作结束归零，再接受后续动作。

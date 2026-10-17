@@ -97,12 +97,35 @@ class LiveWorld(Contract):
         return hashlib.sha256(raw).hexdigest()
 
 
-def load_live_world() -> LiveWorld:
+class LiveLandmarkV2(LiveLandmark):
+    # 提示作为世界契约的一部分参与摘要，不能悄悄改变 v1 的视觉描述。
+    prompt_addendum: Annotated[str, Field(max_length=2000)] = ""
+
+
+class LiveWorldV2(LiveWorld):
+    schema_version: Literal[2]
+    version: Literal["vrchat-home-live-v2"]
+    source_world_digest: Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
+    landmarks: tuple[LiveLandmarkV2, ...]
+
+    @model_validator(mode="after")
+    def valid_predecessor(self):
+        if self.source_world_digest != load_live_world("v1").digest():
+            raise ValueError("world v2 predecessor mismatch")
+        return self
+
+
+def load_live_world(version: Literal["v1", "v2"] = "v1") -> LiveWorld | LiveWorldV2:
+    if version not in {"v1", "v2"}:
+        raise ValueError("unknown live world version")
     root = files("vrc_agent.skills").joinpath("worlds")
-    world = LiveWorld.model_validate_json(
-        root.joinpath("vrchat_home_live_v1.json").read_text(encoding="utf-8")
+    model = LiveWorld if version == "v1" else LiveWorldV2
+    world = model.model_validate_json(
+        root.joinpath(f"vrchat_home_live_{version}.json").read_text(encoding="utf-8")
     )
-    expected = root.joinpath("vrchat_home_live_v1.sha256").read_text(encoding="ascii").strip()
+    expected = (
+        root.joinpath(f"vrchat_home_live_{version}.sha256").read_text(encoding="ascii").strip()
+    )
     if world.digest() != expected:
         raise ValueError("frozen live profile digest mismatch")
     return world
