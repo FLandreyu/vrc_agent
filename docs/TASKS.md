@@ -1099,3 +1099,12 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 - **观测 2：稳定性拒绝仍频繁**。6 次比较中 3 次被拒（`changed_pixels`=4/50/57、`protected_changed`=1/20/28，均远低于 5% 全局上限 142 412，但保护区零容差触发），每次拒绝额外消耗约 2 s 并重启预热。疑因 JPEG q85 有损压缩把 Δ≤1 的帧间抖动放大到 >Δ2（PNG 时代现场验证 286/286 通过；JPEG 切换只验证过延迟与框等价，**未验证稳定性通过率**）。该假设尚未离线复现。
 - 用量（T10 证据）：5 次调用、已知 $0.003788、1 次未知成本（`cost_complete=false`、`unknown_cost_calls=1`）、4 张图；`hourly` 以为 35.1 s 基底外推。
 - 边界：真实 live 但动作仅为 `wait`（无位移）；未改任何策略/阈值/租约/配置。下一步需用户决定：新建租约续期机制（安全相关，需新版本＋ADR-009 复核）或先降低单步循环成本（预热与拒绝率、步长/时长），再评估固定 20 次任务。
+
+
+## 77. T08 运行时成本优化 B（2026-10-17）
+
+- B实施完成，负责人 Codex/root；依据第76节及用户授权实施，独立提交 B。记录：[运行时成本修订](validation/T08_runtime_cost.md)。
+- 只增加推理准入拒绝的 BGRA 预检，不改变冻结策略的两个执行证据检查点。每次 observe 连续2对预热后，在4000ms内最多3次预检，失败不编码/推理；预检不用于派生/绑定。after_inference 或 before_submit 拒绝后暂停，不重复预热/推理同一源；动作后仍重新预热。没有滚动参考、重写时间戳或放宽保护区。
+- v6 新报告 schema8（历史 schema7 仍可复验），新增 stability_prechecks、stage_timings，以及 stage_timing 事件；capture/encode/infer/stability/submit 的 count/p50_ms/p95_ms 可从 duration_ns 事件重算。无样本 null；字段与 schema 隔离，预检不能携带动作绑定。定向回归27 passed（含原 v6）；新增成本回归分别覆盖预检/模型后/提交前失败，无动作、预热只2对，及分位数/证据篡改拒绝。
+- 四项门禁（项目解释器）：`-m pytest -q` → `1129 passed in 370.63s (0:06:10)`（`.runtime/verify/t08_cost_pytest.log`）；`-m ruff check src tests` → `All checks passed!`；`-m ruff format --check src tests` → `142 files already formatted`；`-m pip check` → `No broken requirements found.`，退出码均0。
+- 未改 v6 JSON/sidecar、旧版策略、世界/提示、数值判据/遮罩、30秒基础租约与急停/TTL/epoch/归零；无 live/ARM/付费模型/真实输入/密钥读取。默认配置仍 dry-run。不是实机验收，T08仍IN_PROGRESS。

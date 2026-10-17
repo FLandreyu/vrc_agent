@@ -66,7 +66,7 @@ def test_report_version_mapping_and_config_literal():
     from vrc_agent.config import AppConfig
     from vrc_agent.live_navigation.stability_report import SCHEMAS, WARMUP_VERSIONS
 
-    assert SCHEMAS == {"v1": 2, "v2": 3, "v3": 4, "v4": 5, "v5": 6, "v6": 7}
+    assert SCHEMAS == {"v1": 2, "v2": 3, "v3": 4, "v4": 5, "v5": 6, "v6": 8}
     assert WARMUP_VERSIONS == {"v2", "v3", "v4", "v5", "v6"}
     config = AppConfig(navigation_design="stable-inference-v3")
     assert config.navigation_design == "stable-inference-v3"

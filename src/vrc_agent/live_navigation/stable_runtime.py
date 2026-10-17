@@ -227,8 +227,11 @@ class StableNavigation(SupervisedNavigation):
                 proof["validates_observation_id"] = observation.observation_id
                 return observation, scene
             self.event("stability_rejected")
-            observation, scene = await self.observe()
+            observation, scene = await self.retry_observe()
         raise RuntimeHalt("SCENE_UNSTABLE")
+
+    async def retry_observe(self):
+        return await self.observe()
 
     async def run(self):
         report = await super().run()
@@ -364,9 +367,77 @@ class StableNavigationV5(StableNavigationV4):
 
 
 class StableNavigationV6(StableNavigationV5):
-    """v5判据原样复用，仅新增显式预算/包络，候选仍拒绝live。"""
+    """v5判据不变；预检只增加拒绝，不能代替两个执行证据检查点。"""
 
     POLICY_VERSION = "v6"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.prechecks = []
+        self.retry_reference = None
+
+    async def timed(self, stage, awaitable):
+        started = self.clock.now_ns()
+        try:
+            return await awaitable
+        finally:
+            self.event("stage_timing", stage=stage, duration_ns=self.clock.now_ns() - started)
+
+    async def capture(self, after_ns=None):
+        return await self.timed("capture", super().capture(after_ns))
+
+    async def bounded(self, awaitable, *, ms, reason):
+        stage = {
+            "IMAGE_ENCODING_TIMEOUT": "encode",
+            "INFERENCE_TIMEOUT": "infer",
+            "STABILITY_TIMEOUT": "stability",
+        }.get(reason)
+        operation = super().bounded(awaitable, ms=ms, reason=reason)
+        return await self.timed(stage, operation) if stage else await operation
+
+    async def rpc(self, operation, payload=None):
+        request = super().rpc(operation, payload)
+        return await self.timed("submit", request) if operation == "submit" else await request
+
+    async def observe(self, after_ns=None):
+        # 每次 observe（包括动作后）重建预热；只在本次重试内复用，不跨动作滚动参考。
+        self.retry_reference = None
+        return await super().observe(after_ns)
+
+    async def retry_observe(self):
+        # before_submit 拒绝后也不重启预热；两个原检查点均只增加拒绝。
+        raise RuntimeHalt("SCENE_UNSTABLE")
+
+    async def reference_capture(self, after_ns):
+        if self.retry_reference is not None:
+            # 模型后的复验已经拒绝，不重发同一推理源或重新预热来扩大预算。
+            raise RuntimeHalt("SCENE_UNSTABLE")
+        self.retry_reference = await super().reference_capture(after_ns)
+        observation, frame, max_age = self.retry_reference
+        evidence = self.evidence_entities(self.reference[2]) if self.reference else ()
+        # 不拿预检帧作推理源，不新增派生链；原参考仍由两对连续预热直接证明。
+        # 一旦其超过新鲜度预算即拒绝，不靠重启整轮预热无限消耗任务时间。
+        for _ in range(self.policy["max_inference_attempts"]):
+            if not 0 <= self.clock.now_ns() - observation.captured_at_ns < max_age:
+                raise RuntimeHalt("SCENE_UNSTABLE")
+            _, _, proof = await self.fresh_proof(
+                observation, frame, after_ns=after_ns, entities=evidence
+            )
+            self.proofs.pop()  # 预检不是 after_inference / before_submit 执行证据。
+            self.prechecks.append(proof)
+            self.event("stability_precheck", accepted=self.accepted(proof))
+            if self.accepted(proof):
+                return observation, frame, max_age
+        raise RuntimeHalt("SCENE_UNSTABLE")
+
+    async def run(self):
+        from .timings import summarize_timings
+
+        report = await super().run()
+        report["schema_version"] = 8
+        report["stability_prechecks"] = self.prechecks
+        report["stage_timings"] = summarize_timings(self.events)
+        return report
 
 
 STABLE_NAVIGATION_CLASSES = {

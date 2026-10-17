@@ -71,7 +71,7 @@ def assert_zero(client):
 def test_v6_closed_loop_profiles_and_schema_isolation(profile, value, duration, monkeypatch):
     runtime, client, calls = assembly(profile)
     report = asyncio.run(runtime.run())
-    assert report["outcome"] == "SUCCESS" and calls and report["schema_version"] == 7
+    assert report["outcome"] == "SUCCESS" and calls and report["schema_version"] == 8
     motions = [a for a in report["actions"] if a["kind"] == "motion"]
     assert motions and all(
         a["args"]["forward"] == value and a["args"]["duration_ms"] == duration for a in motions
@@ -84,7 +84,7 @@ def test_v6_closed_loop_profiles_and_schema_isolation(profile, value, duration, 
     validate_stability_report(report)
     for patch in (
         {"schema_version": 6},
-        {"schema_version": 7.0},
+        {"schema_version": 8.0},
         {"navigation_design": "stable-inference-v5"},
         {"run_parameters": None},
     ):

@@ -8,7 +8,7 @@ from .parameters import validate_run_parameters
 from .stability import load_policy
 from .stability_v2 import protected_rectangles
 
-SCHEMAS = {"v1": 2, "v2": 3, "v3": 4, "v4": 5, "v5": 6, "v6": 7}
+SCHEMAS = {"v1": 2, "v2": 3, "v3": 4, "v4": 5, "v5": 6, "v6": 8}
 WARMUP_VERSIONS = {"v2", "v3", "v4", "v5", "v6"}
 
 
@@ -123,11 +123,25 @@ def validate_stability_report(report):
         "stable-inference-v5": "v5",
         "stable-inference-v6": "v6",
     }.get(declared)
-    if version is None or report.get("schema_version") != SCHEMAS[version]:
+    schema = report.get("schema_version")
+    if version is None or not (schema == SCHEMAS[version] or (version == "v6" and schema == 7)):
         raise ValueError("unknown navigation design")
     if version in {"v5", "v6"} and type(report.get("schema_version")) is not int:
         raise ValueError("invalid visible schema type")
     policy, digest = load_policy(version)
+    if version == "v6" and schema == 8:
+        from .timings import validate_timings
+
+        validate_timings(report)
+        prechecks = report.get("stability_prechecks")
+        if not isinstance(prechecks, list):
+            raise ValueError("missing stability prechecks")
+        for proof in prechecks:
+            validate_proof(proof, policy, digest, report["session_id"], version)
+            if "validates_observation_id" in proof:
+                raise ValueError("precheck cannot authorize actions")
+    elif any(k in report for k in ("stage_timings", "stability_prechecks")):
+        raise ValueError("timing schema required")
     if report.get("stability_policy") != {"digest": digest, **policy}:
         raise ValueError("stability policy mismatch")
     if version == "v6":
@@ -148,6 +162,15 @@ def validate_stability_report(report):
             if key in mapping:
                 raise ValueError("duplicate stability observation")
             mapping[key] = event
+    if version == "v6" and schema == 8:
+        for key, source in sources.items():
+            if not any(
+                p["reference_observation_id"] == key
+                and p["stable"]
+                and p["checked_at_ns"] <= source["at_ns"]
+                for p in prechecks
+            ):
+                raise ValueError("inference source missing accepted precheck")
     if version in WARMUP_VERSIONS:
         validate_warmup(report, sources, policy, digest, version)
     if version in {"v5", "v6"}:
