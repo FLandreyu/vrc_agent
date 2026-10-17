@@ -24,22 +24,33 @@ class NavigationGoal(Contract):
     progress_epsilon: Annotated[float, Field(gt=0, le=1)] = 0.01
 
 
-def target(scene: SceneState, goal: NavigationGoal) -> Entity | None:
-    if (
-        scene.confidence is None
-        or scene.confidence < goal.min_confidence
-        or scene.hazards
-        or scene.uncertainties
-    ):
-        return None
-    matches = [
+def target_candidates(scene: SceneState, goal: NavigationGoal) -> list[Entity]:
+    return [
         entity
         for entity in scene.entities
         if entity.label == goal.label
         and entity.confidence >= goal.min_confidence
         and entity.evidence_observation_id in scene.observation_ids
     ]
-    return matches[0] if len(matches) == 1 else None
+
+
+def target_predicates(scene: SceneState, goal: NavigationGoal) -> dict[str, bool]:
+    """固定谓词名，不回显模型提供的危险/不确定性正文。与 target 共用判据。"""
+    return {
+        "scene_confidence_known": scene.confidence is not None,
+        "scene_confidence_sufficient": (
+            scene.confidence is not None and scene.confidence >= goal.min_confidence
+        ),
+        "scene_no_hazards": not scene.hazards,
+        "scene_no_uncertainties": not scene.uncertainties,
+        "unique_bound_confident_target": len(target_candidates(scene, goal)) == 1,
+    }
+
+
+def target(scene: SceneState, goal: NavigationGoal) -> Entity | None:
+    if not all(target_predicates(scene, goal).values()):
+        return None
+    return target_candidates(scene, goal)[0]
 
 
 def area(entity: Entity) -> float:

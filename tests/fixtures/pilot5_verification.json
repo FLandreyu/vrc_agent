@@ -1,0 +1,216 @@
+{
+  "source_sha256": "6846d2cedcbba0aa4b24da72b5853c3ac4bcf1a4d9ef1d4acc257bb10063b180",
+  "reconstruction": "Synthetic frame/ref and capture-gate visible; generated_at upper bound = event.at_ns; presence placeholders only, no original pixels/hazard text.",
+  "actions": [
+    {
+      "schema_version": 1,
+      "session_id": "a38cd371b0244584b23aff2475f2718c",
+      "kind": "wait",
+      "args": {
+        "duration_ms": 100
+      },
+      "action_id": "7e6ada454cf443d0ab27c6d542c50679",
+      "environment_epoch": 1,
+      "based_on_observation_id": "obs-000005",
+      "issued_at_ns": 53997440214700,
+      "expires_at_ns": 53998440214700
+    },
+    {
+      "schema_version": 1,
+      "session_id": "a38cd371b0244584b23aff2475f2718c",
+      "kind": "wait",
+      "args": {
+        "duration_ms": 100
+      },
+      "action_id": "0e97155458f44c3b965fd8324ae2f155",
+      "environment_epoch": 1,
+      "based_on_observation_id": "obs-000011",
+      "issued_at_ns": 54005542519100,
+      "expires_at_ns": 54006542519100
+    },
+    {
+      "schema_version": 1,
+      "session_id": "a38cd371b0244584b23aff2475f2718c",
+      "kind": "wait",
+      "args": {
+        "duration_ms": 100
+      },
+      "action_id": "9ad63de3064047f5be809afb281d7f2c",
+      "environment_epoch": 1,
+      "based_on_observation_id": "obs-000017",
+      "issued_at_ns": 54013510934500,
+      "expires_at_ns": 54014510934500
+    }
+  ],
+  "results": [
+    {
+      "schema_version": 1,
+      "session_id": "a38cd371b0244584b23aff2475f2718c",
+      "action_id": "7e6ada454cf443d0ab27c6d542c50679",
+      "status": "COMPLETED",
+      "reason_code": "OK",
+      "started_at_ns": 53997459867500,
+      "finished_at_ns": 53997561907000,
+      "evidence_observation_ids": [
+        "obs-000005",
+        "obs-000011"
+      ],
+      "verification": "UNKNOWN"
+    },
+    {
+      "schema_version": 1,
+      "session_id": "a38cd371b0244584b23aff2475f2718c",
+      "action_id": "0e97155458f44c3b965fd8324ae2f155",
+      "status": "COMPLETED",
+      "reason_code": "OK",
+      "started_at_ns": 54005561367300,
+      "finished_at_ns": 54005663848600,
+      "evidence_observation_ids": [
+        "obs-000011",
+        "obs-000017"
+      ],
+      "verification": "UNKNOWN"
+    },
+    {
+      "schema_version": 1,
+      "session_id": "a38cd371b0244584b23aff2475f2718c",
+      "action_id": "9ad63de3064047f5be809afb281d7f2c",
+      "status": "COMPLETED",
+      "reason_code": "OK",
+      "started_at_ns": 54013529941800,
+      "finished_at_ns": 54013632176000,
+      "evidence_observation_ids": [
+        "obs-000017",
+        "obs-000032"
+      ],
+      "verification": "UNKNOWN"
+    }
+  ],
+  "observations": [
+    {
+      "event": "observation",
+      "at_ns": 53996590835300,
+      "observation_id": "obs-000005",
+      "captured_at_ns": 53995734313400,
+      "frame_digest": "5f368aa17ce9255a358a5b6ebd8097de2005e59ecbdc3311bbb53b711554a558",
+      "confidence": 0.6,
+      "has_hazards": true,
+      "has_uncertainties": true,
+      "entities": [
+        {
+          "track_id": "home_raccoon",
+          "label": "home_raccoon",
+          "bbox": [
+            0.41,
+            0.47,
+            0.59,
+            0.65
+          ],
+          "confidence": 0.9,
+          "evidence_observation_id": "obs-000005",
+          "last_seen_ns": 53995734313400
+        }
+      ],
+      "derived_from": "obs-000003",
+      "attempt": 1,
+      "attempt_cycle": 1
+    },
+    {
+      "event": "observation",
+      "at_ns": 54004729237600,
+      "observation_id": "obs-000011",
+      "captured_at_ns": 54003953672700,
+      "frame_digest": "cb495aecb37b5a04d33d0cdab93f12fd4b9afd5c2b19f0e4b31544b9d0c41638",
+      "confidence": 0.6,
+      "has_hazards": true,
+      "has_uncertainties": true,
+      "entities": [
+        {
+          "track_id": "raccoon_figurine_01",
+          "label": "home_raccoon",
+          "bbox": [
+            0.41,
+            0.47,
+            0.59,
+            0.64
+          ],
+          "confidence": 0.9,
+          "evidence_observation_id": "obs-000011",
+          "last_seen_ns": 54003953672700
+        }
+      ],
+      "derived_from": "obs-000009",
+      "attempt": 1,
+      "attempt_cycle": 2
+    },
+    {
+      "event": "observation",
+      "at_ns": 54012760392700,
+      "observation_id": "obs-000017",
+      "captured_at_ns": 54012025308800,
+      "frame_digest": "196b25d7486e510c6224d966ef1badbe9e65ebf92d6185c0a4b43e63d044ac82",
+      "confidence": 0.75,
+      "has_hazards": true,
+      "has_uncertainties": true,
+      "entities": [
+        {
+          "track_id": "raccoon_ornament_01",
+          "label": "home_raccoon",
+          "bbox": [
+            0.41,
+            0.47,
+            0.59,
+            0.64
+          ],
+          "confidence": 0.9,
+          "evidence_observation_id": "obs-000017",
+          "last_seen_ns": 54012025308800
+        },
+        {
+          "track_id": "floor_forward_01",
+          "label": "forward_clearance",
+          "bbox": [
+            0.05,
+            0.66,
+            0.95,
+            0.99
+          ],
+          "confidence": 0.9,
+          "evidence_observation_id": "obs-000017",
+          "last_seen_ns": 54012025308800
+        }
+      ],
+      "derived_from": "obs-000015",
+      "attempt": 1,
+      "attempt_cycle": 3
+    },
+    {
+      "event": "observation",
+      "at_ns": 54029174176300,
+      "observation_id": "obs-000032",
+      "captured_at_ns": 54028457689100,
+      "frame_digest": "37b59f1f7ccbda53c60bb2283f089e2d1f64a8ae4daf698ee4d2cff226aa26cc",
+      "confidence": 0.6,
+      "has_hazards": true,
+      "has_uncertainties": true,
+      "entities": [
+        {
+          "track_id": "raccoon_figurine_01",
+          "label": "home_raccoon",
+          "bbox": [
+            0.41,
+            0.47,
+            0.59,
+            0.65
+          ],
+          "confidence": 0.9,
+          "evidence_observation_id": "obs-000032",
+          "last_seen_ns": 54028457689100
+        }
+      ],
+      "derived_from": "obs-000030",
+      "attempt": 3,
+      "attempt_cycle": 4
+    }
+  ]
+}

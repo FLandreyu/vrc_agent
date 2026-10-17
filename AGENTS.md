@@ -32,6 +32,8 @@ context. Treat GraphFlow output as structured, token-saving context.
 
 ## 项目工作约定
 
+- **甲/乙已过 ADR-009 定向复核（2026-10-18，TASKS第88节）**：`45af68f`（v6 有界重试）与 `23f92be`（v7 候选）的声明主体均**未能证伪、无阻断项**（自建探针 12+9 项 0 失败；四项门禁 1249 passed/ruff/format153/pip）。**甲无须因本次复核停用**，但固定 20 次任务仍不得在第 87 节 F-F 修复经复核与现场复验前恢复；**乙仍候选**，不得 live、不得据复核冻结。非阻断观察 N1–N10 见 [记录](docs/validation/T08_stability_v7_review.md) 第 6 节（N3：`STALE_OBSERVATION` 归 `control` 家族且不在 `LIVE_NAVIGATION_FAILURES` 闭集）。复核时工作树含 Codex 未提交的第 87 节修复，门禁数字对应“HEAD+未提交第87节”。
+
 - **v7仅候选（2026-10-18，TASKS第84节）**：新增目标标签`home_raccoon`零容差/其它可见证据框1000ppm的显式候选，schema10逐框差分可重算；v6/schema9不混用。v7摘要`fbebd9cbfd6d11988dd783ea83b7a4e8ef38c1b3ce236e435dcd20617cb2caf7`，状态REQUIRES_FIELD_CALIBRATION且拒绝live，默认现场配置仍v6/dry-run。不是冻结或实机验收，等待独立复核与用户冻结，见`docs/validation/T08_stability_v7_proposal.md`；旧版策略/世界/提示不动，不涉及第82节/UI。
 
 - **第81节后有界重试修复（2026-10-18，TASKS第83节）**：v6冻结文件不变；每周期最多3个共享attempt，重新预热/预检/推理，after_inference与before_submit失败可重试，三次失败才暂停；预检只增加拒绝，旧证据不跨attempt绑定。第77节拒绝即终止描述为历史。详见`docs/validation/T08_bounded_retry.md`；仅离线验证，现场由用户安排。

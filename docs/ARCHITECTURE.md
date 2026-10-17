@@ -308,6 +308,7 @@ live 与 replay 由**同一个状态机**实现（`capture/source.py` 的 `Windo
 - 单次模型调用设 deadline；超时取消并丢弃迟到响应。供应商重试需有上限和退避，不能使旧动作被再次执行。
 - T08 离线导航：可信世界配置限定地标、图像判据及恢复预算；连续 3 个导航运动无进展，先在已归零状态等待新观测，再最多 2 次有界恢复（等待、侧移、等待，每步重新校验）。恢复预算整场任务不重置，耗尽则 PAUSED；不重建 lease、不自动 ARM。实机配置依据现场标定冻结，live 每次侧移还需新观测证明安全区域；真实效果待现场验收。
 - `Runtime(..., navigation=skill)` 可选接入可信 `NavigationSkill`（同时实现 Planner 和结果验证），保留 T06 默认行为。规划器仍仅返回 Proposal；绑定与执行、观测新鲜度、取消及权限校验仍全部经过 Runtime/T03。导航状态机只根据动作结果及新场景更新，不依赖模型解释。
+- 导航反馈 `evidence` 可带嵌套诊断 v1：`diagnostics_version=1`、`verification_predicates`（固定登记名→bool）及 `failed_predicates`（所有 false 项）。它区分基础观测有效与目标可采信，沿现有 `navigation_feedback` 事件写入报告；不包含危险/不确定性正文，不构成动作或到达证据。外层报告 schema 不变，旧报告可无此字段；新诊断由报告校验器检查闭集、类型与内部一致性，不宣称从旧报告缺失字段重建实际现场状态。详见 `validation/T08_action_verification_fix.md`。
 - T08 合成判据：连续两个动作结束后的新观测均显示唯一且可信、同 track 的目标，面积达到配置门槛且居中，才到达；前进按面积增长、转向按偏心减小判断进展，恢复侧移不冒充导航进展。未知/歧义/危险观测清空到达计数并有界等待。图像面积不是世界距离。
 - `skills/worlds/first_world.json` 是显式 offline-only 的第一世界替身，附五组各四次的固定 20 项任务。动作驱动的图像空间模拟仅消费记录型输入，生成新帧后再经感知链路；没有坐标查询或通用地图 API。报告固定分母 20、接管计失败，并区分离线门槛与 UNTESTED 实机门槛。实际世界、地标和机位已另行冻结到 `vrchat_home_live_v1.json`；到达数值仍需现场核对，不能沿用合成结果宣布完成 T08。冻结摘要与验收流程见 `docs/validation/T08_live.md`。
 

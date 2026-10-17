@@ -1193,3 +1193,28 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 - **新阻断（F-F）：动作验证恒为无效**。3 次 `navigation_feedback` 全部 `valid_target=false`，`unknowns` 1→2→3 触发 `TARGET_UNOBSERVED`。时间戳核对显示验证观测确实晚于动作完成（例：动作0 finished `53 997 561 907 000`，验证观测 `obs-000011` captured `54 003 953 672 700`），故失败点在 `verify()` 其余门禁（候选：`window_state`/`frame_ref`/`after.observation_ids == (observation.observation_id,)`/`after.generated_at_ns >= observation.captured_at_ns`）之一，报告未记录这些字段，需离线复现定位，不能猜。
 - **另一问题（F-A 残留）：模型很少输出 `forward_clearance`**。5 次 `inference_source` 中仅 1 次带 `forward_clearance`（conf 0.9），其余 4 次只有 `home_raccoon`；因此 3 次动作全是 `wait`，从未尝试前进（`path_waits=0`，说明提出的是 wait 而非被降级的 motion）。
 - 边界：真实 live（用户在场、F9 授权、Ctrl+F9 续租 1 次），无位移输出；未改任何策略/阈值/租约。下一步：派实现方**定向诊断并修复验证链**（先离线复现 3 帧序列，指出具体失败门禁，再改代码；若涉及判据必须新版本），同时评估 `forward_clearance` 缺失的提示词/模型侧改进；两项修复后再现场。
+
+
+## 87. T08 F-F 验证链离线诊断与可观测性修复（2026-10-18）
+
+- 负责人 Codex；本次离线交付完成，**T08 仍 IN_PROGRESS**。记录见 [动作验证诊断](validation/T08_action_verification_fix.md)，非 ADR-009 独立复核、非实机验收。
+- **先复现再修改**：本地 pilot5 报告实算摘要仍 `6846d2cedcbba0aa4b24da72b5853c3ac4bcf1a4d9ef1d4acc257bb10063b180`。用脱敏元数据和2160×1440合成内存帧重建 000005→000011、000011→000017、000017→000032；原18个基础 verify 条件逐条打印全 true。三个目标门禁每次 false：`scene_confidence_sufficient`（0.60/0.75/0.60 < 0.85）、`scene_no_hazards`、`scene_no_uncertainties`。原结果已包含前后两个 evidence_observation_ids，也直接反证基础 valid=false。原探针输出 `.runtime/verify_ff_before.log`；可重放测试 `tests/unit/test_navigation_verification_diagnostics.py`（加 `-s` 打印24项谓词）。缺失窗口/引用/生成时刻的复建假设及边界见记录第1节，不声称恢复原始像素或危险正文。
+- **更正第86节原因推断**：不是剩余基础绑定/时序门禁失败，而是 target() 对不可信场景的保守拒绝。保留三次 UNKNOWN→TARGET_UNOBSERVED，不能通过删危险/不确定性或提升整体置信度让现场通过。
+- 修复：原判据改为具名 bool 聚合；目标筛选/场景门禁共享函数。`navigation_feedback.evidence` 新增可选嵌套诊断 v1：`diagnostics_version`、`verification_predicates`、`failed_predicates`；每次动作反馈经事件写入报告。固定谓词闭集，不回显模型正文/动态字段名；报告校验版本、bool类型、闭集和一致性，旧反馈兼容。外层 v6 schema9 / v7 schema10 不变，诊断不充当动作/到达证据。
+- F-A：唯一地板框的几何/conf合格，但整体 confidence=0.75 且有危险/不确定性，仍不可采信；path_waits=0 是直接 wait，不能归因于被降级的前进。当前温度默认0、输出1024、思考关闭；适配器拒绝 length 截断。缺历史逐次输出tokens/finish_reason、全实体、画面/危险正文，不能确定提示、额度还是场景导致。记录第4节给出固定20图、每条件3次、提示/额度/温度分别配对的测量提案（未执行），所有 clearance 门槛不变；没有擅改提示或世界。
+- 新增35项回归：24项谓词逐项拒绝、三帧复现、未到达不得成功、两帧到达确认、报告诊断篡改拒绝/旧反馈兼容、内存闭环事件持久化。针对性 `35 passed in 4.70s`。
+- 四项门禁原始结果：`1249 passed in 219.74s (0:03:39)`；`All checks passed!`；`153 files already formatted`；`No broken requirements found.`（`.runtime/ff_{pytest,ruff,format,pip}.log`）。默认 `navigate-live --task G2-1 --config configs/navigation-live.toml --world-version v2`：`mode=plan-only`、`sends_live_input=false`，世界摘要 `b65b3dab51ef720c44b942d7ed67a975fbc52ed2bc1c65610718dc47b23d1ac0`；完整输出 `.runtime/ff_dry_run.log`。
+- 未改：v6 JSON `e46e0c2816c6f512fbd4fd5e5c60ff1ef3fc4d0560e0e8b29d3b6a6315caa513`、v7 JSON `fbebd9cbfd6d11988dd783ea83b7a4e8ef38c1b3ce236e435dcd20617cb2caf7` 与 sidecar，旧策略、世界/提示、配置选择/阈值/遮罩/预热、30秒基础租约、急停/epoch/TTL/pending_releases/到期归零。配置仍dry-run。无live/ARM/付费调用/真实输入/密钥读取；未改第82节及T13提案。GraphFlow工具不可用，未伪造context/plan/index。
+- 下一步：另派复核诊断语义等价与报告兼容；按用户授权安排固定图像评测/现场，先解释场景拒绝来源，再决定是否需要新版本。不能宣称当前已恢复自主前进或完成20次实机验收。
+
+
+## 88. ADR-009 定向复核：v6 有界重试（甲）与 v7 逐证据稳定性候选（乙）（2026-10-18）
+
+- 负责人 DSH / Flash（**独立复核，只审不改**：未改产品源码/策略/世界/提示/配置/测试）。对象 `45af68f`（甲）、`23f92be`（乙）；记录见 [T08_stability_v7_review.md](validation/T08_stability_v7_review.md)。**不是实机验收**：未启动 live、未 ARM、未调用付费模型、未发送真实输入、未读取密钥。
+- **结论：甲、乙均“声明主体未能证伪、无阻断项”**。甲六项（共享 3 次 attempt 不放大、证据只能同 attempt 支撑、预检不授权、不可重试集合、报告可重算、ARM 拒绝提示只走非阻塞 outbox）全部未能证伪；乙八项（v6 字节/摘要与不变项、候选在资源前拒绝 live、规则逐字、逐框几何、计数可重算、schema10 隔离、隐私面、断言边界）全部未能证伪。
+- 证据：自建探针 `.runtime/verify/t08_v7_review_jia_probe.py`（SHA256 `385295f60d37531679a5403a25e13147db138c148601b5020b291fdf285d9c69`，**12 项 0 失败**）与 `.runtime/verify/t08_v7_review_yi_probe.py`（SHA256 `8e56e6efcb82bd280c81716c61b91bddf2c2c4630ea9963c7bd073843aac8d1b`，**9 项 0 失败**）；日志 `t08_jia_probe.log`/`t08_yi_probe.log`，工件 `t08_jia_a1_precheck_all.json`、`t08_jia_a1_nested.json`、`t08_jia_a5_historical.json`、`t08_yi_v6_report.json`、`t08_yi_v7_report.json`（SHA256 见记录第 3 节）。关键实测：预检全失败=3 次 attempt/0 次推理/无第 4 次；三次 before_submit 全失败=3 次推理（不是 9 次）；伪造跨 attempt 证据/观测 ID 全被 `ValueError` 拒；`STALE_OBSERVATION`/`WARMUP_UNSTABLE`/急停/租约/epoch 均不重试；v7 逐框预算 174/175 px 与全局 142412/142413 边界、32 px 外扩、遮罩剔除、重叠双计、`home_raccoon` 1 px 即拒、完全不可见即 `ValueError` 全部与声明一致。
+- **仓库状态必须随结论一起读**：`HEAD=f9e9c7c`，`23f92be..HEAD` 仅 docs；复核时工作树脏（Codex 未提交的第 87 节 F-F 修复，含对 `stability_report.py` 的**只增加拒绝**的诊断校验），故探针与门禁跑在“HEAD+未提交第 87 节”上；被审两提交的产品代码路径未被该改动触及（逐行核对 `git diff`）。未 stage/回滚他人改动。
+- 四项门禁原始输出（`.runtime/verify/t08_v7_review_{pytest,ruff_check,ruff_format,pip_check}.log`）：`1249 passed in 205.41s (0:03:25)`；`All checks passed!`；`153 files already formatted`；`No broken requirements found.`
+- 非阻断观察 N1–N10 见记录第 6 节；使用报告/批次汇总时须注意：**N3** `STALE_OBSERVATION` 在遥测里归 `control` 家族且不在 `LIVE_NAVIGATION_FAILURES` 15 码闭集内（v2 预热已可产生，甲新增一条同码路径），按 `live_navigation` 家族计数会漏记、但不会出现 unknown-code 警告；**N1** `observation` 事件的 attempt 未与 proof 交叉核对（改 2→1 仍通过，动作证据链不受影响）；**N2** 预算与全部 attempt 元数据一并删除后与历史 schema9 不可区分；**N5** pilot5 的 F-F/F-A 不由甲引入，第 87 节已更正归因，且离线合成闭环 4 动作 24 谓词全 true、F-F 不可复现；**N8** `changed_runs` 最坏体积/校验耗时未测。
+- 现场口径：**甲无须因本次复核停用**（未发现放大预算/跨 attempt 复用/把异常当抖动/绕过 ARM 的缺陷）；但**固定 20 次任务不应在第 87 节修复经独立复核与现场复验前恢复**（F-F 使现场无法产生有效位移证据，属产品级缺陷，非对甲的退回）。**乙维持候选**：不得 live、不得据本复核冻结、不得当作 16/20 或实机验收依据。
+- 未评估：v6 判据现场通过率、v7 的 1000 ppm 是否合适、F-F/F-A 根因、第 87 节修复的语义等价性（后者另有交接）。T08 仍 IN_PROGRESS。

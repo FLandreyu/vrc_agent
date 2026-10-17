@@ -3,9 +3,44 @@
 from collections import deque
 
 from vrc_agent.contracts import ActionProposal, ActionRequest, ActionResult, Observation, SceneState
-from vrc_agent.planner import NavigationGoal, area, target
+from vrc_agent.planner import (
+    NavigationGoal,
+    area,
+    target,
+    target_candidates,
+    target_predicates,
+)
 
 from .world import NavigationLimits
+
+VERIFICATION_PREDICATES = frozenset(
+    (
+        "result_completed",
+        "result_ok",
+        "result_action_matches",
+        "result_session_matches",
+        "action_verifiable",
+        "result_finished",
+        "observation_after_finish",
+        "capture_monotonic",
+        "observation_unseen",
+        "observation_new",
+        "window_visible",
+        "frame_bound",
+        "session_consistent",
+        "epoch_consistent",
+        "scene_observation_bound",
+        "scene_generated_after_capture",
+        "action_before_bound",
+        "scene_before_issue",
+        "scene_confidence_known",
+        "scene_confidence_sufficient",
+        "scene_no_hazards",
+        "scene_no_uncertainties",
+        "unique_bound_confident_target",
+        "target_timestamp_current",
+    )
+)
 
 
 def offset(entity) -> float:
@@ -77,34 +112,47 @@ class NavigationSkill:
         observation: Observation,
         after: SceneState,
     ) -> ActionResult:
-        valid = (
-            result.status == "COMPLETED"
-            and result.reason_code == "OK"
-            and result.action_id == action.action_id
-            and result.session_id == action.session_id
-            and action.kind in {"motion", "wait"}
-            and result.finished_at_ns is not None
-            and observation.captured_at_ns > result.finished_at_ns
-            and observation.captured_at_ns > self._last_capture
-            and observation.observation_id not in self._seen
-            and observation.observation_id != action.based_on_observation_id
-            and observation.window_state == "visible"
-            and observation.frame_ref is not None
-            and observation.session_id == after.session_id == before.session_id == action.session_id
-            and observation.environment_epoch
+        predicates = {
+            "result_completed": result.status == "COMPLETED",
+            "result_ok": result.reason_code == "OK",
+            "result_action_matches": result.action_id == action.action_id,
+            "result_session_matches": result.session_id == action.session_id,
+            "action_verifiable": action.kind in {"motion", "wait"},
+            "result_finished": result.finished_at_ns is not None,
+            "observation_after_finish": result.finished_at_ns is not None
+            and observation.captured_at_ns > result.finished_at_ns,
+            "capture_monotonic": observation.captured_at_ns > self._last_capture,
+            "observation_unseen": observation.observation_id not in self._seen,
+            "observation_new": observation.observation_id != action.based_on_observation_id,
+            "window_visible": observation.window_state == "visible",
+            "frame_bound": observation.frame_ref is not None,
+            "session_consistent": observation.session_id
+            == after.session_id
+            == before.session_id
+            == action.session_id,
+            "epoch_consistent": observation.environment_epoch
             == after.environment_epoch
             == before.environment_epoch
-            == action.environment_epoch
-            and after.observation_ids == (observation.observation_id,)
-            and after.generated_at_ns >= observation.captured_at_ns
-            and action.based_on_observation_id in before.observation_ids
-            and before.generated_at_ns <= action.issued_at_ns
-        )
+            == action.environment_epoch,
+            "scene_observation_bound": after.observation_ids == (observation.observation_id,),
+            "scene_generated_after_capture": after.generated_at_ns >= observation.captured_at_ns,
+            "action_before_bound": action.based_on_observation_id in before.observation_ids,
+            "scene_before_issue": before.generated_at_ns <= action.issued_at_ns,
+        }
+        valid = all(predicates.values())
         current = target(after, self.goal) if valid else None
         previous = target(before, self.goal) if valid else None
         if current and current.last_seen_ns != observation.captured_at_ns:
             current = None
+        predicates.update(target_predicates(after, self.goal))
+        candidates = target_candidates(after, self.goal)
+        predicates["target_timestamp_current"] = (
+            len(candidates) == 1 and candidates[0].last_seen_ns == observation.captured_at_ns
+        )
         self.last_evidence = {
+            "diagnostics_version": 1,
+            "verification_predicates": predicates,
+            "failed_predicates": [name for name, passed in predicates.items() if not passed],
             "observation_id": observation.observation_id,
             "valid_target": current is not None,
             "target_area": area(current) if current else None,

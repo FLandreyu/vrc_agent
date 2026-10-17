@@ -113,7 +113,34 @@ def validate_warmup(report, sources, policy, digest, version="v2"):
                 raise ValueError("source warmup mismatch")
 
 
+def validate_feedback_diagnostics(report):
+    """可选的嵌套诊断 v1：旧报告不补造；不把诊断当作动作/到达证据。"""
+    from vrc_agent.skills.navigation import VERIFICATION_PREDICATES
+
+    for event in report.get("events", []):
+        if event.get("event") != "navigation_feedback":
+            continue
+        evidence = event.get("evidence", {})
+        fields = {"diagnostics_version", "verification_predicates", "failed_predicates"}
+        if not fields.intersection(evidence):
+            continue
+        predicates = evidence.get("verification_predicates")
+        if (
+            type(evidence.get("diagnostics_version")) is not int
+            or evidence["diagnostics_version"] != 1
+            or not isinstance(predicates, dict)
+            or predicates.keys() != VERIFICATION_PREDICATES
+            or any(type(value) is not bool for value in predicates.values())
+            or evidence.get("failed_predicates")
+            != [name for name, passed in predicates.items() if not passed]
+            or type(evidence.get("valid_target")) is not bool
+            or evidence["valid_target"] != all(predicates.values())
+        ):
+            raise ValueError("invalid verification diagnostics")
+
+
 def validate_stability_report(report):
+    validate_feedback_diagnostics(report)
     declared = report.get("navigation_design")
     if declared is None and report.get("schema_version", 1) == 1:
         if "stability_policy" in report or "stability_proofs" in report:
