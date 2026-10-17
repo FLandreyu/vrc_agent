@@ -1183,3 +1183,13 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 - 乙的边界复核：v7 比较器把 `zero_tolerance_labels` 与 `evidence_changed_ppm` 写死校验（严格等于 `["home_raccoon"]` 与 `1000`），任何改动都会因摘要/校验不符而失败——属有意刚性；报告新增逐框 `changed_runs` 差分位置证据，提案已声明其隐私属性（本地敏感几何），不得对外宣传为匿名。
 - 观察（非阻断）：(1) `control/service.py` 的任务预算分派仍用白名单集合 `{v6, v7}`，新增设计键需同步（第80节 N4 部分缓解）；(2) 工作树中出现由 Markdown 格式化导致的表格重排噪声（`ARCHITECTURE.md`、`T13_client_ui_proposal.md` 全行变化），已还原，不影响内容。
 - 边界：本轮**不是独立复核，也不是实机验收**；T08 仍 IN_PROGRESS，固定20次任务未恢复。下一步：**甲可立即现场使用**（v6 + 重试，无需重新冻结）；乙待另派 ADR-009 复核 + 用户冻结后才可进 live。
+
+## 86. T08 重试后 G2-1 live 试点（2026-10-18，现场会话）
+
+- 负责人 DSH / Flash（现场执行，未改产品代码）。v6 + 有界重试首次现场；报告 `.runtime/live/G2-1-pilot5/navigation-live/`（SHA256 `6846d2cedcbba0aa4b24da72b5853c3ac4bcf1a4d9ef1d4acc257bb10063b180`）。
+- 结果：`outcome=TARGET_UNOBSERVED`、`final_state=PAUSED`、总时长 52 s、**3 个动作（全部 `wait` 100 ms）且全部 `COMPLETED`**、1 次续租（控制窗口 60 s、实际用 40.2 s）、**5 次模型调用 $0.004698**（10931 tokens）。
+- **甲（重试）与续租均生效**：共 4 个动作决策周期、6 个 attempt；周期 4 的 attempt 2 预检被拒（`protected_changed=1`）后 attempt 3 成功恢复，不再一次抖动判死；`lease_extensions=[{sequence:1, granted_ms:30000}]` 与 `control_budget.total_ms=60000` 一致。
+- 分段耗时（p50/p95）：capture 346/408 ms、stability 408/492 ms、encode 37/102 ms、**infer 3175/3469 ms**、submit 20/21 ms。单周期约 4.3–4.6 s。
+- **新阻断（F-F）：动作验证恒为无效**。3 次 `navigation_feedback` 全部 `valid_target=false`，`unknowns` 1→2→3 触发 `TARGET_UNOBSERVED`。时间戳核对显示验证观测确实晚于动作完成（例：动作0 finished `53 997 561 907 000`，验证观测 `obs-000011` captured `54 003 953 672 700`），故失败点在 `verify()` 其余门禁（候选：`window_state`/`frame_ref`/`after.observation_ids == (observation.observation_id,)`/`after.generated_at_ns >= observation.captured_at_ns`）之一，报告未记录这些字段，需离线复现定位，不能猜。
+- **另一问题（F-A 残留）：模型很少输出 `forward_clearance`**。5 次 `inference_source` 中仅 1 次带 `forward_clearance`（conf 0.9），其余 4 次只有 `home_raccoon`；因此 3 次动作全是 `wait`，从未尝试前进（`path_waits=0`，说明提出的是 wait 而非被降级的 motion）。
+- 边界：真实 live（用户在场、F9 授权、Ctrl+F9 续租 1 次），无位移输出；未改任何策略/阈值/租约。下一步：派实现方**定向诊断并修复验证链**（先离线复现 3 帧序列，指出具体失败门禁，再改代码；若涉及判据必须新版本），同时评估 `forward_clearance` 缺失的提示词/模型侧改进；两项修复后再现场。
