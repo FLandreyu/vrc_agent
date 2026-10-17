@@ -50,6 +50,8 @@
 
 真实运行使用单独的 `navigate-live` 入口和独立控制进程，必须显式 live、确认标定/付费/图像发送并本机按 F9；不自动 ARM。配置示例为 `configs/navigation-live.example.toml`。完整操作、冻结摘要、失败计数规则与待现场核对的到达门槛见 [T08 live 验证记录](docs/validation/T08_live.md)。本轮未执行真实导航或付费模型调用。
 
+2026-10-17：用户已授权冻结v5，`configs/navigation-live.toml` 显式选择 `stable-inference-v5`，默认仍dry-run；世界v2须显式 `--world-version v2`，不传仍v1。该现场配置的 `[perception]` 使用 `image_format = "jpeg"` / `jpeg_quality = 85`；通用默认及旧配置保持PNG，可显式 `image_format = "png"`。安装 `requirements.lock` 包含锁定Pillow依赖。编码仅影响模型上传，稳定性仍比较原始BGRA，预算/判据不变。见[冻结验证](docs/validation/T08_v5_freeze.md)与[JPEG验证](docs/validation/T08_jpeg_encoding.md)；真实模型延迟和20次任务尚待现场复测，T08仍IN_PROGRESS。
+
 ## 新环境安装
 
 项目声明支持 Python 3.12–3.14，目前实际验证的是 Windows / Python 3.14.6。规划中的 3.12 在当前机器未安装。

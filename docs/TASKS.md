@@ -985,5 +985,12 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 ## 65. v5 冻结实施（2026-10-17，独立提交①）
 
 - 负责人 Codex / root。冻结实施与自测已完成（独立提交①）；按第63节用户授权，v5只改status为FROZEN，版本名保留。v5新字节SHA256 **`2e21c734ec902c44b3111de8f6f62f06626fbbe9410ff9a0b959469248eb4faa`**，sidecar一致；阈值/遮罩/判据/提示不改，v1–v4及世界v1/v2 JSON和sidecar逐字节不变。`navigation-live.toml`显式选择stable-inference-v5，默认仍dry-run。见[冻结验证记录](validation/T08_v5_freeze.md)。GraphFlow工具不可用，按回退约定定向读取，未伪造context/plan/index。
-- 测试由固定候选拒绝改为FROZEN才通过状态门槛：双世界装配在provider/controller/capture前以哨兵验证；临时恢复候选状态仍拒绝，FROZEN运行时构造不触发采集/模型/发送。其余授权、ARM/lease/epoch门槛保持。四项门禁：**991 passed in126.55s**；ruff check通过；format133文件通过；pip check无依赖问题。日志`.runtime/verify/t08_freeze_{pytest,ruff,format,pip}.log`；冻结前快照与状态单字段审计见同目录`t08_freeze_before.json`/`t08_freeze_audit.json`。
+- 测试由固定候选拒绝改为FROZEN才通过状态门槛：世界v2装配在provider/controller/capture前以哨兵验证；临时恢复候选状态仍拒绝，FROZEN运行时构造不触发采集/模型/发送。其余授权、ARM/lease/epoch门槛保持。四项门禁：**991 passed in126.55s**；ruff check通过；format133文件通过；pip check无依赖问题。日志`.runtime/verify/t08_freeze_{pytest,ruff,format,pip}.log`；冻结前快照与状态单字段审计见同目录`t08_freeze_before.json`/`t08_freeze_audit.json`。
 - 本次不启动live、不ARM、不调用付费模型、不发真实输入；是实现方交付，不是独立复核或实机验收。T08仍IN_PROGRESS；JPEG改造为下一独立提交，之后须生产同款延迟复测与固定20次真实任务，世界v2仍显式选择，不能据此宣称≥16/20或T10实机折算验收。
+
+## 66. JPEG q85 编码实施（2026-10-17，独立提交②）
+
+- 负责人 Codex / root，JPEG实现及自测交付完成（非独立复核/现场验收）。基于冻结提交 `3846191`，按第64节证据新增并锁定Pillow、内存JPEG编码与配置，接入provider与稳定性运行时；不改原始BGRA稳定性比较、判据、时限、提示或世界。后续由现场做生产同款延迟与语义复测；不启动真实live或付费调用。
+- `Pillow==13.0.0`在pyproject/requirements.lock精确锁定，逐项核对现有锁版本未升级；新增`bgra_jpeg`/统一编码+MIME，live配置显式jpeg/85，通用默认PNG兼容旧配置。JPEG原尺寸、忽略alpha、4:2:0、仅内存；provider原始帧和稳定性预编码接线同源，预编码不二次压缩、失败不回退PNG。配置字节SHA256 **`139e4d448163fbeb701999a361a3309906d8923fbba51d158ba9a6798677b7cd`**；images.py工作树字节SHA256 **`5748820ee858d5ea3a26f424483894fe48d83b834a9632af746a7416a50fb680`**。完整哈希及边界见[JPEG验证记录](validation/T08_jpeg_encoding.md)。
+- 离线实测G3/G5参考PNG哈希与第59/60节一致，JPEG体积366753/430166字节（PNG的6.22%/7.83%），编码中位21.25/16.19ms；仅本机编码，不能据此断言供应商p95已达标。审计`.runtime/verify/t08_jpeg_delivery.json` SHA256 **`bcc820a4ebd3c6d1cf24c84cefe4e7bf254b6d591d952dd5ede77e58a693f4ab`**；v1–v4/世界v1/v2的12文件、冻结v5摘要`2e21c734…`及提示/判据/控制源码均不变。
+- 新增30项回归，连同旧隐私用例定向38 passed in9.15s；T05静态规则仅为Image+BytesIO.save增加精确例外，补完整帧禁盘/禁网动态哨兵，不放宽其他禁用模块/属性。初次完整门禁2项旧静态规则失败保留`t08_jpeg_initial_pytest.log`；修正后最终四项门禁全绿：**1021 passed in169.86s**、ruff check通过、format135文件通过、pip check无依赖问题；日志`.runtime/verify/t08_jpeg_{pytest,ruff,format,pip}.log`。未操作真实live/ARM/付费/输入，GraphFlow工具不可用。后续须另一执行者针对性复核并现场做生产同款JPEG请求延迟/语义复测→固定20次任务；T08仍IN_PROGRESS，不宣称≥16/20或T10实机费用验收。

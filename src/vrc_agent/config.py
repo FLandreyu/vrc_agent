@@ -116,6 +116,9 @@ class PerceptionConfig(Contract):
     disable_thinking: bool = False
     #: 默认**不把画面发给供应商**；开启前必须由本机用户明确决定。
     send_images: bool = False
+    #: 通用默认保持 PNG；现场配置显式选择 JPEG q85。只影响发给模型的图像。
+    image_format: Literal["png", "jpeg"] = "png"
+    jpeg_quality: Annotated[int, Field(ge=1, le=95)] = 85
     #: 离线故障注入，只对假模型有效（ok/garbage/error/timeout/refused/cancelled）。
     fake_behaviour: str = "ok"
     #: 付费预算（美元）。0 表示不启用付费供应商。

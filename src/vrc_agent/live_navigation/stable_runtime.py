@@ -5,7 +5,7 @@ import asyncio
 from vrc_agent.contracts import SceneState, new_id
 from vrc_agent.perception.scene import build_scene
 from vrc_agent.providers.base import Deadline, ModelInput
-from vrc_agent.providers.images import bgra_png
+from vrc_agent.providers.images import encode_bgra
 from vrc_agent.runtime import RuntimeHalt
 
 from .runtime import SupervisedNavigation
@@ -136,8 +136,14 @@ class StableNavigation(SupervisedNavigation):
         for _ in range(self.policy["max_inference_attempts"]):
             observation, frame, _ = await self.reference_capture(after_ns)
             # 编码在 worker 内，主循环继续每 30ms 检查授权；provider 不再同步编码大帧。
-            png = await self.bounded(
-                asyncio.to_thread(bgra_png, frame.data, frame.size),
+            image, media_type = await self.bounded(
+                asyncio.to_thread(
+                    encode_bgra,
+                    frame.data,
+                    frame.size,
+                    image_format=self.client.config.perception.image_format,
+                    jpeg_quality=self.client.config.perception.jpeg_quality,
+                ),
                 ms=1000,
                 reason="IMAGE_ENCODING_TIMEOUT",
             )
@@ -145,8 +151,8 @@ class StableNavigation(SupervisedNavigation):
                 prompt=calibrated_prompt(self.world.landmark(self.task.group)),
                 observation_id=observation.observation_id,
                 request_id=new_id(),
-                image=png,
-                image_media_type="image/png",
+                image=image,
+                image_media_type=media_type,
                 image_size=frame.size,
                 image_ref=frame.ref,
                 session_id=observation.session_id,

@@ -34,6 +34,7 @@ from vrc_agent.providers.base import (
     run_attempts,
 )
 from vrc_agent.providers.errors import ProviderError, ProviderFailure
+from vrc_agent.providers.images import encode_bgra, validate_image_encoding
 from vrc_agent.providers.protocol import ProviderSink
 
 DEFAULT_SYSTEM_PROMPT = (
@@ -145,6 +146,8 @@ class OpenAICompatibleProvider:
         disable_thinking: bool = False,
         prepare_in_thread: bool = False,
         send_images: bool = False,
+        image_format: Literal["png", "jpeg"] = "png",
+        jpeg_quality: int = 85,
         system_prompt: str = DEFAULT_SYSTEM_PROMPT,
         price_input_per_mtok_usd: float | None = None,
         price_output_per_mtok_usd: float | None = None,
@@ -189,6 +192,9 @@ class OpenAICompatibleProvider:
         self._disable_thinking = disable_thinking
         self._prepare_in_thread = prepare_in_thread
         self._send_images = send_images
+        validate_image_encoding(image_format, jpeg_quality)
+        self._image_format = image_format
+        self._jpeg_quality = jpeg_quality
         self._system_prompt = system_prompt
         self._price_input = price_input_per_mtok_usd
         self._price_output = price_output_per_mtok_usd
@@ -339,10 +345,12 @@ class OpenAICompatibleProvider:
         if model_input.image is not None and self._send_images:
             media_type, image = model_input.image_media_type, model_input.image
             if media_type == "application/x-bgra":
-                from vrc_agent.providers.images import bgra_png
-
-                image = bgra_png(image, model_input.image_size)
-                media_type = "image/png"
+                image, media_type = encode_bgra(
+                    image,
+                    model_input.image_size,
+                    image_format=self._image_format,
+                    jpeg_quality=self._jpeg_quality,
+                )
             encoded = base64.b64encode(image).decode("ascii")
             content.append(
                 {

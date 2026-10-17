@@ -16,10 +16,12 @@ import json
 import os
 import socket
 import urllib.request
+from io import BytesIO
 from pathlib import Path
 from typing import Any
 
 import pytest
+from PIL import Image
 
 import vrc_agent.perception as perception_package
 import vrc_agent.providers as providers_package
@@ -29,12 +31,13 @@ from vrc_agent.clock import FakeClock
 from vrc_agent.config import PerceptionConfig
 from vrc_agent.perception import Perception
 from vrc_agent.providers.fake import FakeSceneProvider
+from vrc_agent.providers.images import bgra_jpeg
 from vrc_agent.telemetry import ALLOWED_FIELDS
 
 PERCEPTION_FILES = sorted(Path(perception_package.__file__).parent.glob("*.py"))
 PROVIDER_FILES = sorted(Path(providers_package.__file__).parent.glob("*.py"))
 
-#: 图像处理、截图、进程与写盘相关的第三方依赖：两个包都不许引入。
+#: 图像处理、截图、进程与写盘相关依赖；仅 images.py 可用 PIL.Image 内存编码。
 FORBIDDEN_MODULES = {
     "PIL",
     "cv2",
@@ -58,6 +61,7 @@ NETWORK_MODULES = {"urllib", "http", "ssl", "smtplib", "ftplib", "xmlrpc", "webb
 
 #: 写盘相关的属性名。读文件（read_text）在感知/供应商包同样不允许——它们不碰磁盘。
 FORBIDDEN_ATTRIBUTES = {
+    "open",
     "write",
     "writelines",
     "write_text",
@@ -114,6 +118,16 @@ def test_the_provider_package_only_reaches_the_network_through_urllib() -> None:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for name, lineno in _imports(tree):
             roots = _module_roots(name)
+            if path.name == "images.py" and name == "PIL":
+                # 不放行 ImageGrab、Image.open 等磁盘/截图能力，精确到导入名。
+                imported = next(
+                    node
+                    for node in ast.walk(tree)
+                    if isinstance(node, (ast.Import, ast.ImportFrom)) and node.lineno == lineno
+                )
+                assert isinstance(imported, ast.ImportFrom)
+                assert [(alias.name, alias.asname) for alias in imported.names] == [("Image", None)]
+                continue
             assert not roots & FORBIDDEN_MODULES, f"{path.name}:{lineno} 引入了 {name}"
             if roots & NETWORK_MODULES:
                 assert name in PROVIDER_ALLOWED_NETWORK, (
@@ -130,6 +144,27 @@ def test_neither_package_touches_the_filesystem() -> None:
             if isinstance(node.func, ast.Name):
                 assert node.func.id != "open", f"{path.name}:{node.lineno} 调用了 open()"
             if isinstance(node.func, ast.Attribute):
+                if path.name == "images.py" and node.func.attr == "save":
+                    # 仅放行 bgra_jpeg 的 image.save(output)，output 必须来自同一 with
+                    # 中无参 BytesIO()，image 必须来自 Image.frombytes()；路径参数仍禁用。
+                    function = next(n for n in tree.body if getattr(n, "name", None) == "bgra_jpeg")
+                    context = next(n for n in ast.walk(function) if isinstance(n, ast.With))
+                    assert node in list(ast.walk(context))
+                    assert isinstance(node.func.value, ast.Name) and node.func.value.id == "image"
+                    assert len(node.args) == 1 and isinstance(node.args[0], ast.Name)
+                    assert node.args[0].id == "output"
+                    bindings = {item.optional_vars.id: item.context_expr for item in context.items}
+                    assert ast.dump(bindings["output"]) == ast.dump(
+                        ast.parse("BytesIO()", mode="eval").body
+                    )
+                    origin = bindings["image"]
+                    assert isinstance(origin, ast.Call) and isinstance(origin.func, ast.Attribute)
+                    assert ast.unparse(origin.func) == "Image.frombytes"
+                    assert not any(
+                        isinstance(n, (ast.Assign, ast.AnnAssign, ast.NamedExpr))
+                        for n in ast.walk(context)
+                    )
+                    continue
                 assert node.func.attr not in FORBIDDEN_ATTRIBUTES, (
                     f"{path.name}:{node.lineno} 调用了 {node.func.attr}()"
                 )
@@ -201,6 +236,34 @@ def test_an_offline_perception_run_writes_nothing_and_calls_nobody(
     assert len(scenes) == 13
     assert sum(1 for scene in scenes if scene.entities) == 5  # 看得见的 5 帧
     assert all(scene.environment_epoch == 1 for scene in scenes)
+
+
+def test_jpeg_encoding_writes_only_to_memory_and_calls_nobody(monkeypatch):
+    """内存 save 例外必须实际编码成功，且无法打开文件/联网/创建临时图像。"""
+    original_save = Image.Image.save
+    targets = []
+
+    def refuse(*args, **kwargs):
+        pytest.fail("JPEG encoder attempted filesystem or network access")
+
+    def memory_save(self, fp, format=None, **params):
+        assert isinstance(fp, BytesIO) and format == "JPEG"
+        targets.append(fp)
+        return original_save(self, fp, format=format, **params)
+
+    monkeypatch.setattr(Image.Image, "save", memory_save)
+    monkeypatch.setattr(Image, "open", refuse)
+    monkeypatch.setattr(builtins, "open", refuse)
+    monkeypatch.setattr(os, "open", refuse)
+    for name in ("open", "read_text", "read_bytes", "write_text", "write_bytes", "mkdir"):
+        monkeypatch.setattr(Path, name, refuse)
+    monkeypatch.setattr(socket, "create_connection", refuse)
+    monkeypatch.setattr(socket, "getaddrinfo", refuse)
+    monkeypatch.setattr(urllib.request, "urlopen", refuse)
+    for size in ((8, 8), (2160, 1440)):
+        encoded = bgra_jpeg(bytes([17, 83, 201, 0]) * (size[0] * size[1]), size)
+        assert encoded.startswith(b"\xff\xd8")
+    assert len(targets) == 2 and all(target.closed for target in targets)
 
 
 def test_telemetry_carries_no_prompt_no_payload_and_no_frame_bytes() -> None:

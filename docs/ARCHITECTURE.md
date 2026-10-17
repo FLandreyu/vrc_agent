@@ -269,7 +269,8 @@ live 与 replay 由**同一个状态机**实现（`capture/source.py` 的 `Windo
 - 导航继续复用 T08 连续新证据和两轮恢复预算；增加可覆盖的图像尺度/到达/恢复区域判定。真实恢复须在当前观测明确识别可侧移的开阔木地板，并排除贴墙、家具、水池、石块、台阶和小桩；没有证据就暂停，不把“未报告 hazard”当安全。
 - live 采集锁定人工 ARM 所得 session/epoch、标定分辨率；推理前后、绑定前、执行后复核授权。模型与 IPC 均有截止期，迟到、旧帧、接管、epoch/lease 变化、未知目标、动作/时间预算耗尽终止，不自动重试任务。控制进程持续独立处理热键、焦点、心跳及到期归零。
 - 每次尝试留结构化报告（无媒体/密钥/原始模型文本），关联配置摘要、任务、session、动作、观测与数值判据。汇总固定分母 20，缺失/重复尝试/接管/超时/卡住不算成功；离线或不同配置报告不能混入实机验收。
-- 真实图片出网时由适配器把 BGRA 编码为有效 PNG；不再把原始像素字节误标为 PNG。尚未测量的真实供应商速度与识别质量属于现场验收，不放宽 1500ms 观测上限以迁就慢模型。
+- 真实图片出网时统一经 `providers.images.encode_bgra` 编码，返回字节与匹配的 MIME；`bgra_png` 保留无损路径，`bgra_jpeg` 使用锁定的 Pillow，在内存中将 BGRA 按 BGRX 解码为 RGB、忽略 alpha、原尺寸 JPEG q85（固定4:2:0、非渐进、无优化遍历）。`[perception].image_format` 只允许 png/jpeg，`jpeg_quality` 严格整数1–95、默认85。通用默认仍 png，现场 `navigation-live.toml` 显式 jpeg/85；已编码的 ModelInput 按其媒体类型直传，不再压缩，不自动回退格式。未授权 send_images 的适配器不附图、不编码原始 BGRA。
+- 稳定性路径在既有 worker/1000ms 编码预算内预编码，ModelInput 媒体类型同步为 image/jpeg 或 image/png；稳定性比较、保护区证明、reference 始终引用原始 BGRA，不能比较 JPEG 解码像素来放行运动。停止/授权检查与8000ms推理预算不变。JPEG真实供应商速度与识别质量须现场复测，不放宽1500ms观测上限；记录见 [JPEG 编码验证](validation/T08_jpeg_encoding.md)。
 
 ### T08 方向 A 候选修订（2026-10-16，离线实现、待独立复核和现场标定）
 
@@ -283,7 +284,9 @@ live 与 replay 由**同一个状态机**实现（`capture/source.py` 的 `Windo
 
 2026-10-16 v3 独立复核退回修正后发布 v4 候选：v3 的外扩保护矩形与 UI 遮罩相交时，遮罩会把保护区变化清零，比较器因此可能把真实变化判成稳定，并可发出 dry-run motion（复核 F1）；本轮按「派生/执行前拒绝相交」的保守方案补齐比较器、运行时与报告复验三层契约（交集中止 `MASKED_SCENE_EVIDENCE`），并把保护语义写入策略 `protected_mask_policy: "reject_on_overlap"`——v4 与 v3 的差异只有版本名与这条语义，schema=5，`navigation_design` 新增 `stable-inference-v4`，v1–v3 文件、摘要与报告行为不变。同时收紧版本装配（基类只接受 v1，版本选择走 `stable_navigation_class()` 工厂）与报告字段严格性。v4 同样硬拒绝 live，未现场复验；遮罩是否遮挡导航目标仍待现场确认。详见 [v4 候选验证记录](validation/T08_stability_v4.md)。
 
-2026-10-17 按 TASKS 第 54/55 节新增 v5 候选（schema=6、`stable-inference-v5`，指标 `rgb_tolerance_visible_guard_v5`，保护语义 `exclude_masked`）：**只保护未遮罩的证据像素**，部分交叠为声明放行，不保证遮罩内部稳定。比较器/运行时/报告复验均拒绝每个完全不可见的原 bbox 或外扩保护框，并按并集记 `entity_masked_px`、`protected_masked_px`、`protected_visible_px` 以及原框/保护矩形；来源事件与 proof 的审计须同实体重算相符。v5 的矩形几何和 schema 类型严格校验独立生效，v1–v4 文件、摘要及判据源码不改；5%/Δ≤2/黑帧/预热和控制边界不变，候选仍拒绝 live。详见 [v5 验证记录](validation/T08_stability_v5.md)。世界 v2 和 G3/G5 提示修改仅为[未批准提案](validation/T08_world_v2_proposal.md)，离线提案加载器不会接入生产世界选择。
+2026-10-17 按 TASKS 第 54/55 节新增 v5 候选（schema=6、`stable-inference-v5`，指标 `rgb_tolerance_visible_guard_v5`，保护语义 `exclude_masked`）：**只保护未遮罩的证据像素**，部分交叠为声明放行，不保证遮罩内部稳定。比较器/运行时/报告复验均拒绝每个完全不可见的原 bbox 或外扩保护框，并按并集记 `entity_masked_px`、`protected_masked_px`、`protected_visible_px` 以及原框/保护矩形；来源事件与 proof 的审计须同实体重算相符。v5 的矩形几何和 schema 类型严格校验独立生效，v1–v4 文件、摘要及判据源码不改；5%/Δ≤2/黑帧/预热和控制边界不变。初次交付的候选拒绝live及世界v2提案状态见 [v5 验证记录](validation/T08_stability_v5.md)与[原提案](validation/T08_world_v2_proposal.md)。
+
+当前状态由TASKS第60/62/63/65节接续：世界v2已经定稿并独立复核，用户授权冻结v5+world v2，v5状态已FROZEN（新摘要`2e21c734…`）。仅FROZEN可通过live策略状态门槛，其他授权与本机ARM门槛继续有效。世界v2通过`load_live_world("v2")`/`--world-version v2`显式选择，默认v1；状态冻结及第66节JPEG编码均不修改稳定性判据和世界规则，也不代表实机20次验收。
 
 2026-10-17 根据 TASKS 第59节及用户定案新增世界 `vrchat-home-live-v2`（世界 schema=2，与稳定性 proof schema=6 分开）：G3 box 到达尺寸0.50/0.52及新激活前参考、G5仅替换到达参考而保留 lower_half 判据，G3/G5 提示追加内容作为地标字段纳入世界摘要。`load_live_world("v2")` 显式加载 v2；默认仍 v1，v1 JSON/摘要与提示文本保持不变。`navigate-live` / `navigation-report` 新增 `--world-version v2`；汇总只接收选定世界的摘要，v2须声明正确版本，成功复验也检查版本/摘要，不混用到达规则。20项任务清单不改；此世界实现未改变候选稳定性策略的 live 拒绝、ARM 或观测安全门槛。详见 [世界 v2 实现与验证](validation/T08_world_v2.md)；此前的世界v2提案为历史建议，本次定案取代其中G3尺寸建议。
 
@@ -383,7 +386,7 @@ vrc-agent logs               # T10 日志保留：默认只列出过期候选，
 - `speak` 和 `interact` 契约已保留但始终返回 `UNSUPPORTED_CAPABILITY`。不存在真实模型执行或世界结果验证器。
 - 基础日志已实现有界后台写入和字段白名单；日志失败/丢弃计数可从 status 查看。自动保留期限属于 T10，尚未实现。
 - `providers/`（T05）用标准库 `urllib` 发 HTTP（唯一出网出口，隔离在 `asyncio.to_thread` 里），不新增第三方依赖；密钥只留在内存、只以布尔值出现在 `describe_provider`/doctor 里，`repr(provider)` 脱敏。失败按 `ProviderFailure` 分类，只有 `TRANSPORT_ERROR`/`HTTP_ERROR(429/5xx)` 可重试，重试次数与退避有上限且每次重试都重算剩余截止期。
-- `[perception]` 配置段（`PerceptionConfig`）：供应商名/模型/base_url/密钥变量名/超时/重试/退避/输出上限/温度/JSON 模式/是否发送画面/假模型行为/预算/价格表（成对给出）与货币、场景实体上限、观测最大年龄。校验要求：价格成对、base_url 只允许 https 或回环 http、非 fake 供应商必须有正预算。
+- `[perception]` 配置段（`PerceptionConfig`）：供应商名/模型/base_url/密钥变量名/超时/重试/退避/输出上限/温度/JSON 模式/是否发送画面/图像格式与JPEG质量/假模型行为/预算/价格表（成对给出）与货币、场景实体上限、观测最大年龄。校验要求：价格成对、base_url 只允许 https 或回环 http、非 fake 供应商必须有正预算；编码配置也由工厂传入适配器并在构造时校验。
 - CLI `perceive` 只读离线：默认假模型；`--provider openai_compat` 必须带 `--allow-paid` 且配置了正预算才会发请求；`--send-images` 才把内存帧交给适配器。真实供应商的实机冒烟尚未执行（本机没有密钥），见 `docs/validation/T05_perception.md`。
 - 按 ADR-009，T04 与 T05 的实现与交叉验证由不同执行者完成；独立复核的结论与仍未验证项记在 `docs/validation/T04_capture.md` 与 `docs/validation/T05_perception.md`。
 - `capture/`（T04）用 `ctypes` 直接调用 Win32/GDI，不新增第三方依赖；文件划分与失败映射见第 4 节。帧只存内存，采集成功不写日志，失败按原因码计数并可经遥测输出。
