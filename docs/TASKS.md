@@ -1043,3 +1043,14 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 - **F-D（运动包络/任务预算与云端延迟不匹配）**：动作固定 `duration_ms=200`、`forward=0.2`（运行时校验白名单），约 0.06 m/步；40 动作上限 ≈2.4 m（未计转向）；每步需要一次完整观测（预热+推理 3.6–4.2 s+证明 0.4–0.5 s，有时因 `protected_changed` 重观测）≈4.5–5 s → **30 s 任务预算只够 ~6 步 ≈0.35 m**。G1 起点距广告牌 5–6 m，不可达。
 - 判定：**20 次任务当前不可执行**；需预算/包络修订（新版本 v6＋控制参数＋复核＋用户重新冻结）：①动作新鲜度 1500→约 3000–5000 ms（含 runtime/session/before_submit 三处硬编码 1500 上限）；②运动包络（duration/forward 可选档，维持单步有界、到期归零、急停优先）；③`task_timeout_s` 30→约 120–180 s（按每步 4.5–5 s×N 步推导，含重观测余量）；④必要时 `max_actions`。**不得放宽急停/租约/epoch/归零语义**；稳定性判据/遮罩/阈值与世界不变。
 - 边界：非复核；试点仍不计入 20 次；本轮 live 共 5 次推理调用（首次 $0.000811 + 本次 $0.003661）。
+
+## 72. v6 预算与可选运动包络修订（2026-10-17）
+
+- 负责人Codex / root。**实现/自测交付完成，待另一执行者ADR-009独立复核与用户重新冻结，T08仍IN_PROGRESS。** 按第71节及用户授权新增v6候选，详见[v6验证记录](validation/T08_stability_v6.md)。GraphFlow工具不可用，未伪造context/plan/index；本轮只做离线实现与验证，无live/ARM/付费/真实输入。
+- 参数：动作新鲜度4000ms（控制配置上限5000ms、策略4000ms取小），统一runtime/session/before_submit与报告有效年龄；原200ms/0.2前进cautious档、新500ms/0.4前进field档可选，转向±1/200ms和恢复侧移±0.2/200ms不改。Runtime独立检查不可变单轴包络，模型/替换skill不能扩档、混轴或提高时长；MotionArgs及控制max_motion_ms上限仍500ms。采集竞态等待仍独立≤1500ms/50次/30ms，不与4000ms准入年龄混淆。
+- 任务上限180s、max_actions40明确强制，未增加动作数。按原现场距离线性估算新前进档约0.3m/步、40步约12m，仅为工程推导而非实机距离。**30s lease/epoch/heartbeat/watchdog/TTL/急停/到期归零均未改，任务180s不延长租约，到期仍提前停，不续租/自动ARM；本轮不宣称20次已可执行。**
+- v6策略为`local-rgb-stability-v6-candidate` / `REQUIRES_FIELD_CALIBRATION`，装配`stable-inference-v6`、报告schema7、JSON字节SHA256 **`63cdd1d179f9e03bd74df16fe1d37752606555336c639f22cd653fd6dd17e11c`**，sidecar同源。相对v5差异恰version/status/freshness_ms/task_timeout_s/motion_profiles；metric/遮罩/面积/像素/保护/黑帧/预热判据原样复用。v1–v5文件/摘要、世界v1/v2、clearance/到达/恢复判据及提示不变；控制/传输/provider未修改。新.gitattributes只对v6 JSON/sidecar固定原始字节，旧CRLF工件不重写。
+- 通用默认仍legacy/cautious/1500ms/dry-run；现场配置显式v6/field/4000ms且dry-run。v6候选在session和运行时构造均拒绝live，报告亦拒候选声称live；schema6/7隔离，v6报告强制完整档位/包络/实际年龄/任务/动作上限参数。旧版不能通过基类/工厂选择v6漏预热，不移用v5冻结授权。
+- 新增48项v6回归，相关配置/JPEG定向**77 passed in20.81s**；旧版本闭集/码分类同步后相关27项通过（初次全量1121 passed/3 failed日志保留`t08_v6_initial_pytest.log`）。最终四项门禁全绿：**1124 passed in281.64s**、ruff check通过、format140文件通过、pip check无依赖问题；日志`.runtime/verify/t08_v6_{targeted,pytest,ruff,format,pip}.log`。覆盖新鲜度1530/3000/3999准入、4000/5000拒绝、执行期间年龄失效归零、500ms到期、急停/心跳/lease/epoch优先、候选双门槛/报告隔离与模型越档拒绝。
+- 两档完整内存HTTP→感知/预热/比较→规划→控制core→验证均合成SUCCESS/归零；另补世界v2/G1-1/field档合成闭环SUCCESS、PAUSED、sends_live_input=false且报告复验通过。完整源码/测试/配置、旧文件、日志和三份报告摘要见`.runtime/verify/t08_v6_delivery.json`，SHA256 **`d29dde51b62459d9470af0f5531f7287e10457b22f689600b061bbd2335edb60`**。新配置字节SHA256 **`3b1f0a65f3196fa0d1729735b3007cd331e4224838a4676ee9f35b0f8eaefa2c`**；v5仍`2e21c734…`、世界v2仍`b65b3dab…`。
+- 下一步：另一执行者按ADR-009复核预算三层贯通、闭集包络、权限/归零优先与像素/世界不变项→用户重新冻结v6→在未放宽租约纪律下现场测量运动距离/制动、语义与延迟并重新判断任务可行性；不自动恢复20次批次，不宣称实机成功率或T10费用验收。

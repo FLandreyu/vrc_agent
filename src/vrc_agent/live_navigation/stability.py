@@ -12,7 +12,7 @@ from vrc_agent.capture.frames import Frame
 
 
 def load_policy(version="v1"):
-    if version not in {"v1", "v2", "v3", "v4", "v5"}:
+    if version not in {"v1", "v2", "v3", "v4", "v5", "v6"}:
         raise ValueError("unknown stability policy version")
     root = files("vrc_agent.live_navigation")
     raw = root.joinpath(f"stability_{version}.json").read_bytes()
@@ -20,7 +20,26 @@ def load_policy(version="v1"):
     expected = root.joinpath(f"stability_{version}.sha256").read_text(encoding="ascii").strip()
     if digest != expected:
         raise ValueError("stability policy digest mismatch")
-    return json.loads(raw), digest
+    policy = json.loads(raw)
+    if version == "v6":
+        from .parameters import profile_declarations
+
+        expected = {
+            **load_policy("v5")[0],
+            "version": "local-rgb-stability-v6-candidate",
+            "status": policy.get("status"),
+            "freshness_ms": 4000,
+            "task_timeout_s": 180.0,
+            "motion_profiles": profile_declarations(),
+        }
+        if (
+            type(policy.get("status")) is not str
+            or policy["status"] not in {"REQUIRES_FIELD_CALIBRATION", "FROZEN"}
+            or json.dumps(policy, sort_keys=True, allow_nan=False)
+            != json.dumps(expected, sort_keys=True)
+        ):
+            raise ValueError("invalid v6 budget policy or changed stability criteria")
+    return policy, digest
 
 
 def masked_rgb(frame: Frame, policy: dict) -> bytes:

@@ -58,7 +58,7 @@ class ControlConfig(Contract):
     max_motion_ms: Annotated[int, Field(ge=1, le=500)] = 500
     heartbeat_interval_ms: Annotated[int, Field(ge=20, le=200)] = 100
     heartbeat_timeout_ms: Annotated[int, Field(ge=100, le=1000)] = 500
-    observation_max_age_ms: Annotated[int, Field(ge=100, le=1500)] = 1500
+    observation_max_age_ms: Annotated[int, Field(ge=100, le=5000)] = 1500
     lease_ms: Annotated[int, Field(ge=500, le=60000)] = 30000
     chat_interval_ms: Annotated[int, Field(ge=1500, le=60000)] = 2000
     max_actions_per_session: Annotated[int, Field(ge=10, le=100000)] = 10000
@@ -214,7 +214,9 @@ class AppConfig(Contract):
         "stable-inference-v3",
         "stable-inference-v4",
         "stable-inference-v5",
+        "stable-inference-v6",
     ] = "legacy"
+    navigation_motion_profile: Literal["cautious", "field"] = "cautious"
     mode: Literal["dry-run", "live"] = "dry-run"
     #: 动作提议的来源（T01 的固定示例）；与 [perception].provider 是不同的东西。
     provider: Literal["fake"] = "fake"
@@ -223,6 +225,21 @@ class AppConfig(Contract):
     capture: CaptureConfig = Field(default_factory=CaptureConfig)
     perception: PerceptionConfig = Field(default_factory=PerceptionConfig)
     dialogue: DialogueConfig = Field(default_factory=DialogueConfig)
+
+    @model_validator(mode="after")
+    def navigation_parameters(self):
+        if self.navigation_design != "stable-inference-v6" and (
+            self.navigation_motion_profile != "cautious"
+            or self.control.observation_max_age_ms > 1500
+        ):
+            raise ValueError("extended navigation parameters require v6")
+        if self.navigation_design == "stable-inference-v6":
+            required = 500 if self.navigation_motion_profile == "field" else 200
+            if self.control.max_motion_ms < required:
+                raise ValueError(
+                    "control motion limit is smaller than selected navigation envelope"
+                )
+        return self
 
     def capture_window_title(self) -> str:
         return self.capture.window_title or self.control.window_title

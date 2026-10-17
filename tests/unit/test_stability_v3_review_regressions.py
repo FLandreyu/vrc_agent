@@ -27,6 +27,7 @@ from vrc_agent.live_navigation.stable_runtime import (
     StableNavigationV3,
     StableNavigationV4,
     StableNavigationV5,
+    StableNavigationV6,
     stable_navigation_class,
 )
 
@@ -90,7 +91,7 @@ def test_v4_verdict_rejects_masked_protection_evidence():
 
 def test_base_class_only_accepts_v1_and_factory_owns_version_choice():
     assert StableNavigation.POLICY_VERSION == "v1"
-    for version in ("v2", "v3", "v4", "v5"):
+    for version in ("v2", "v3", "v4", "v5", "v6"):
         with pytest.raises(ValueError, match="must match the navigation class"):
             StableNavigation(None, None, None, None, None, policy_version=version)
     assert STABLE_NAVIGATION_CLASSES == {
@@ -99,12 +100,13 @@ def test_base_class_only_accepts_v1_and_factory_owns_version_choice():
         "v3": StableNavigationV3,
         "v4": StableNavigationV4,
         "v5": StableNavigationV5,
+        "v6": StableNavigationV6,
     }
     for version, runtime_class in STABLE_NAVIGATION_CLASSES.items():
         assert stable_navigation_class(version) is runtime_class
         assert runtime_class.POLICY_VERSION == version
     with pytest.raises(ValueError, match="unknown stability policy version"):
-        stable_navigation_class("v6")
+        stable_navigation_class("v7")
 
 
 def test_verdict_strictness_matches_the_v3_contract():

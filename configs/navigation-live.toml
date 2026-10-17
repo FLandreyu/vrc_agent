@@ -3,19 +3,21 @@
 #
 # 2026-10-17 第 54 节现场证据：思考开启且 max_tokens=1024 时 6/7 空 content；
 # 本次显式禁用思考，保持输出额度；禁用后现场记录为 7/7 返回、2.6–8.3s。
-# 第63节用户已选版：冻结v5（8000ms预算），本文件显式选择v5，默认仍dry-run。
+# 第71/72节新增v6预算候选（复用v5判据），本文件显式选择v6，默认仍dry-run。
+# v6尚未重新冻结，live在创建供应商/控制器前拒绝；不沿用v5冻结授权。
 # 真实输入仍需显式live、图像/付费/标定授权与本机F9；冻结不代表20次任务验收。
 # 第64/66节改为JPEG q85上传，8000ms预算不变；生产同款时延须现场复测。
 
 mode = "dry-run"
-navigation_design = "stable-inference-v5"
+navigation_design = "stable-inference-v6"
+navigation_motion_profile = "field"
 provider = "fake"
 
 [control]
 enable_motion_probe = false
 window_title = "VRChat"
 lease_ms = 30000
-observation_max_age_ms = 1500
+observation_max_age_ms = 4000
 
 [capture]
 window_class = "UnityWndClass"

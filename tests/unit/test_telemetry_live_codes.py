@@ -55,6 +55,8 @@ NON_CODE_LITERALS: dict[str, str] = {
     "ESTOP": "控制进程状态名（急停后的 `final_state`）",
     "COMPLETED": "动作结果 `status` 字段值",
     "FROZEN": "v1 稳定性报告 `status` 字段值",
+    "REQUIRES_FIELD_CALIBRATION": "稳定性策略候选status，不是运行结局码或控制权限",
+    "POLICY_VERSION": "运行时类的版本属性名，getattr用于检查装配，不是事件值或结局码",
     "REQUIRES_HUMAN_REVIEW": "`field_acceptance` 处置标记",
     "ENGINEERING_INITIAL_FIELD_CHECK_REQUIRED": "世界配置 `ArrivalRule.status`",
     "SET_YOUR_VISION_MODEL": "配置占位哨兵（选了真模型才允许 live 启动）",

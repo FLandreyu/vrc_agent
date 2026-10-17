@@ -21,6 +21,7 @@ from vrc_agent.telemetry.report import (
     usage_defect,
 )
 
+from .parameters import action_freshness_ms
 from .runtime import SupervisedNavigation
 from .skill import CalibratedSkill, calibrated_prompt
 from .stability import load_policy
@@ -72,6 +73,7 @@ async def navigation_entry(args):
         "stable-inference-v3": "v3",
         "stable-inference-v4": "v4",
         "stable-inference-v5": "v5",
+        "stable-inference-v6": "v6",
     }.get(config.navigation_design, "v1")
     if stable and load_policy(policy_version)[0]["status"] != "FROZEN":
         raise ValueError(
@@ -93,7 +95,9 @@ async def navigation_entry(args):
         provider,
         clock=clock,
         prompt=calibrated_prompt(landmark),
-        max_observation_age_ms=min(config.control.observation_max_age_ms, 1500),
+        max_observation_age_ms=action_freshness_ms(
+            config, load_policy(policy_version)[0] if stable else None
+        ),
     )
     report_dir = Path(args.state_dir) / "navigation-live"
     report_dir.mkdir(parents=True, exist_ok=True)

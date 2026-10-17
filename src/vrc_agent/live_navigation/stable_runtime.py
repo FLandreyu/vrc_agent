@@ -1,6 +1,7 @@
 """慢模型的停止—推理—本机复验路径；不修改控制进程或旧感知时效策略。"""
 
 import asyncio
+from dataclasses import asdict
 
 from vrc_agent.contracts import SceneState, new_id
 from vrc_agent.perception.scene import build_scene
@@ -8,6 +9,7 @@ from vrc_agent.providers.base import Deadline, ModelInput
 from vrc_agent.providers.images import encode_bgra
 from vrc_agent.runtime import RuntimeHalt
 
+from .parameters import action_freshness_ms
 from .runtime import SupervisedNavigation
 from .skill import calibrated_prompt
 from .stability import (
@@ -37,6 +39,9 @@ class StableNavigation(SupervisedNavigation):
             raise ValueError("candidate stability policy cannot enable live navigation")
         self.inference_ms = self.policy["inference_ms"]
         self.task_timeout_s = self.policy["task_timeout_s"]
+        self.action_freshness_ms = action_freshness_ms(self.client.config, self.policy)
+        if policy_version == "v6":
+            self.max_actions = self.policy["max_actions"]
         self.reference = None
         self.proofs = []
 
@@ -213,7 +218,7 @@ class StableNavigation(SupervisedNavigation):
             evidence = self.evidence_entities(original)
             self.reject_masked_protection(evidence)
             _, _, proof = await self.fresh_proof(source, frame, entities=evidence)
-            max_age = min(1500, self.client.config.control.observation_max_age_ms) * 1_000_000
+            max_age = self.action_freshness_ms * 1_000_000
             if (
                 self.accepted(proof)
                 and 0 <= self.clock.now_ns() - observation.captured_at_ns < max_age
@@ -228,11 +233,19 @@ class StableNavigation(SupervisedNavigation):
     async def run(self):
         report = await super().run()
         report["navigation_design"] = "stable-inference-" + self.policy_version
-        report["schema_version"] = {"v1": 2, "v2": 3, "v3": 4, "v4": 5, "v5": 6}[
+        report["schema_version"] = {"v1": 2, "v2": 3, "v3": 4, "v4": 5, "v5": 6, "v6": 7}[
             self.policy_version
         ]
         report["stability_policy"] = {"digest": self.policy_digest, **self.policy}
         report["stability_proofs"] = self.proofs
+        if self.policy_version == "v6":
+            report["run_parameters"] = {
+                "motion_profile": self.client.config.navigation_motion_profile,
+                "motion_envelope": asdict(self.motion_envelope),
+                "freshness_ms": self.action_freshness_ms,
+                "task_timeout_s": self.task_timeout_s,
+                "max_actions": self.max_actions,
+            }
         return report
 
 
@@ -350,12 +363,19 @@ class StableNavigationV5(StableNavigationV4):
         return False
 
 
+class StableNavigationV6(StableNavigationV5):
+    """v5判据原样复用，仅新增显式预算/包络，候选仍拒绝live。"""
+
+    POLICY_VERSION = "v6"
+
+
 STABLE_NAVIGATION_CLASSES = {
     "v1": StableNavigation,
     "v2": StableNavigationV2,
     "v3": StableNavigationV3,
     "v4": StableNavigationV4,
     "v5": StableNavigationV5,
+    "v6": StableNavigationV6,
 }
 
 

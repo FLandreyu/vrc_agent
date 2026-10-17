@@ -5,6 +5,7 @@ from vrc_agent.planner import NavigationGoal, target
 from vrc_agent.skills.navigation import NavigationSkill, offset
 from vrc_agent.skills.world import NavigationLimits
 
+from .parameters import motion_profile
 from .world import LiveLandmark
 
 CLEARANCE_GUIDANCE_VERSION = "runtime-clearance-v1"
@@ -34,8 +35,9 @@ CLEARANCE_GUIDANCE = (
 
 
 class CalibratedSkill(NavigationSkill):
-    def __init__(self, landmark: LiveLandmark):
+    def __init__(self, landmark: LiveLandmark, *, profile="cautious"):
         self.landmark = landmark
+        self.motion_envelope = motion_profile(profile)
         self.path_waits = 0
         super().__init__(
             NavigationGoal(
@@ -77,11 +79,26 @@ class CalibratedSkill(NavigationSkill):
                     self.halt_reason = "PATH_UNSAFE"
                 return ActionProposal(kind="wait", args={"duration_ms": 100})
             self.path_waits = 0
+            return proposal.model_copy(
+                update={
+                    "args": proposal.args.model_copy(
+                        update={
+                            "forward": self.motion_envelope.forward,
+                            "duration_ms": self.motion_envelope.forward_ms,
+                        }
+                    )
+                }
+            )
         if proposal.kind == "motion" and proposal.args.yaw:
             # T00 记录低强度转头不可辨；仍是契约内 200ms 短动作，每次结束归零。
             return ActionProposal(
                 kind="motion",
-                args={"yaw": 1.0 if proposal.args.yaw > 0 else -1.0, "duration_ms": 200},
+                args={
+                    "yaw": self.motion_envelope.yaw
+                    if proposal.args.yaw > 0
+                    else -self.motion_envelope.yaw,
+                    "duration_ms": self.motion_envelope.yaw_ms,
+                },
             )
         return proposal
 

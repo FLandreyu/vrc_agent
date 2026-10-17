@@ -11,6 +11,7 @@ from vrc_agent.providers.base import CancelToken, Deadline
 from vrc_agent.providers.errors import ProviderError
 from vrc_agent.runtime import RuntimeHalt
 
+from .parameters import action_freshness_ms, motion_profile
 from .skill import CalibratedSkill
 
 
@@ -37,14 +38,24 @@ class SupervisedNavigation:
     ):
         if not isinstance(client, ControllerProcess):
             raise ValueError("independent ControllerProcess required")
-        if not 0 < arm_timeout_s <= 120 or not 0 < task_timeout_s <= 60:
+        if not 0 < arm_timeout_s <= 120 or not 0 < task_timeout_s <= 180:
             raise ValueError("invalid supervised time budget")
         if not 1 <= inference_ms <= 1000:
             raise ValueError("inference must fit fresh-observation budget")
         self.client, self.source_factory, self.perception = client, source_factory, perception
         self.world, self.task = world, task
         self.clock = clock or SystemClock()
-        self.skill = CalibratedSkill(world.landmark(task.group))
+        if (
+            client.config.navigation_motion_profile != "cautious"
+            and getattr(self, "POLICY_VERSION", None) != "v6"
+        ):
+            raise ValueError("field motion envelope requires v6 runtime")
+        self.skill = CalibratedSkill(
+            world.landmark(task.group), profile=client.config.navigation_motion_profile
+        )
+        self.motion_envelope = motion_profile(client.config.navigation_motion_profile)
+        self.max_actions = None
+        self.action_freshness_ms = action_freshness_ms(client.config)
         self.arm_timeout_s, self.task_timeout_s, self.inference_ms = (
             arm_timeout_s,
             task_timeout_s,
@@ -119,13 +130,14 @@ class SupervisedNavigation:
                 task.exception()
 
     async def capture(self, after_ns=None):
-        max_age = min(1500, self.client.config.control.observation_max_age_ms) * 1_000_000
+        max_age = self.action_freshness_ms * 1_000_000
         if after_ns is None:
             return await self._capture_once(after_ns, max_age)
 
         # 动作结束与采集发布存在竞态。只丢弃未严格更新的候选，不重写时间/ID；
         # 整个等待共用一个截止期，不能逐帧重置1500ms窗口或跳过授权检查。
-        retry_until_ns = self.clock.now_ns() + max_age
+        retry_ms = min(1500, self.action_freshness_ms)
+        retry_until_ns = self.clock.now_ns() + retry_ms * 1_000_000
 
         async def wait_for_new_frame():
             for attempt in range(50):
@@ -136,9 +148,7 @@ class SupervisedNavigation:
                     await asyncio.sleep(0.03)
             raise RuntimeHalt("STALE_OBSERVATION")
 
-        return await self.bounded(
-            wait_for_new_frame(), ms=max_age / 1_000_000, reason="STALE_OBSERVATION"
-        )
+        return await self.bounded(wait_for_new_frame(), ms=retry_ms, reason="STALE_OBSERVATION")
 
     async def _capture_once(self, after_ns, max_age, retry_until_ns=None):
         observation = await self.bounded(
@@ -236,7 +246,9 @@ class SupervisedNavigation:
             authority = await self.wait_for_arm()
             self.source = self.source_factory(authority)
             observation, scene = await self.observe()
-            for _ in range(self.skill.limits.max_actions):
+            for _ in range(
+                self.max_actions if self.max_actions is not None else self.skill.limits.max_actions
+            ):
                 observation, scene = await self.before_submit(observation, scene)
                 raw = await self.bounded(
                     self.skill.decide(scene, tuple(self.results[-8:])), ms=200, reason="MODEL_LATE"
@@ -256,13 +268,7 @@ class SupervisedNavigation:
                     args = proposal.args
                     if target(scene, self.skill.goal) is None:
                         raise RuntimeHalt("UNSAFE_SCENE")
-                    if (
-                        args.duration_ms != 200
-                        or args.forward not in {0.0, 0.2}
-                        or args.strafe not in {-0.2, 0.0, 0.2}
-                        or args.yaw not in {-1.0, 0.0, 1.0}
-                        or sum(value != 0 for value in (args.forward, args.strafe, args.yaw)) != 1
-                    ):
+                    if not self.motion_envelope.accepts(args):
                         raise RuntimeHalt("INVALID_ARGS")
                     if args.strafe and not self.skill.recovery_allowed(scene):
                         raise RuntimeHalt("RECOVERY_UNSAFE")
