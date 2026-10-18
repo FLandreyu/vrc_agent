@@ -40,7 +40,7 @@ class StableNavigation(SupervisedNavigation):
         self.inference_ms = self.policy["inference_ms"]
         self.task_timeout_s = self.policy["task_timeout_s"]
         self.action_freshness_ms = action_freshness_ms(self.client.config, self.policy)
-        if policy_version in {"v6", "v7"}:
+        if policy_version in {"v6", "v7", "v8"}:
             self.max_actions = self.policy["max_actions"]
         self.reference = None
         self.proofs = []
@@ -117,6 +117,11 @@ class StableNavigation(SupervisedNavigation):
                 if e.label in {self.skill.goal.label, "forward_clearance", "recovery_clearance"}
             ],
             derived_from=proof["reference_observation_id"],
+            **(
+                {"scene_generated_at_ns": scene.generated_at_ns}
+                if self.policy_version == "v8"
+                else {}
+            ),
         )
         return current, scene
 
@@ -202,6 +207,11 @@ class StableNavigation(SupervisedNavigation):
                     if e.label in {self.skill.goal.label, "forward_clearance", "recovery_clearance"}
                 ],
                 **self.source_audit(evidence),
+                **(
+                    {"scene_generated_at_ns": source_scene.generated_at_ns}
+                    if self.policy_version == "v8"
+                    else {}
+                ),
             )
             current, current_frame, proof = await self.fresh_proof(
                 observation, frame, entities=evidence
@@ -236,12 +246,19 @@ class StableNavigation(SupervisedNavigation):
     async def run(self):
         report = await super().run()
         report["navigation_design"] = "stable-inference-" + self.policy_version
-        report["schema_version"] = {"v1": 2, "v2": 3, "v3": 4, "v4": 5, "v5": 6, "v6": 7, "v7": 10}[
-            self.policy_version
-        ]
+        report["schema_version"] = {
+            "v1": 2,
+            "v2": 3,
+            "v3": 4,
+            "v4": 5,
+            "v5": 6,
+            "v6": 7,
+            "v7": 10,
+            "v8": 11,
+        }[self.policy_version]
         report["stability_policy"] = {"digest": self.policy_digest, **self.policy}
         report["stability_proofs"] = self.proofs
-        if self.policy_version in {"v6", "v7"}:
+        if self.policy_version in {"v6", "v7", "v8"}:
             report["run_parameters"] = {
                 "motion_profile": self.client.config.navigation_motion_profile,
                 "motion_envelope": asdict(self.motion_envelope),
@@ -514,6 +531,83 @@ class StableNavigationV7(StableNavigationV6):
         return report
 
 
+class StableNavigationV8(StableNavigationV6):
+    """v6 像素/预算底座；仅装配独立 v8 采信候选。"""
+
+    POLICY_VERSION = "v8"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from .acceptance_v8 import AcceptanceSkillV8
+
+        self.skill = AcceptanceSkillV8(
+            self.world.landmark(self.task.group),
+            self.policy,
+            profile=self.client.config.navigation_motion_profile,
+        )
+
+    async def capture(self, after_ns=None):
+        value = await super().capture(after_ns)
+        self.skill.register(value[0])
+        return value
+
+    def event(self, name, **fields):
+        from .acceptance_v8 import scoped_confidence
+
+        if name in {"inference_source", "observation"}:
+            from vrc_agent.contracts import Entity
+
+            entities = [
+                Entity.model_validate({**e, "bbox": tuple(e["bbox"])}) for e in fields["entities"]
+            ]
+            fields["source_confidence"] = fields["confidence"]
+            fields["confidence"] = scoped_confidence(entities, self.skill.goal.label)
+            fields["confidence_scope"] = "target_entity"
+            obs = self.skill.observations[fields["observation_id"]]
+            fields["observation_metadata"] = obs.model_dump(
+                mode="json",
+                include={
+                    "session_id",
+                    "environment_epoch",
+                    "observation_id",
+                    "captured_at_ns",
+                    "frame_ref",
+                    "frame_size",
+                    "window_state",
+                },
+            )
+        super().event(name, **fields)
+
+    def derive(self, *args):
+        from .acceptance_v8 import scope_scene
+
+        observation, scene = super().derive(*args)
+        return observation, scope_scene(scene, self.skill.goal.label)
+
+    async def run(self):
+        from .acceptance_v8 import SEMANTICS
+
+        report = await super().run()
+        report["schema_version"] = 11
+        report["acceptance_semantics"] = SEMANTICS
+        report["acceptance_observations"] = [
+            obs.model_dump(
+                mode="json",
+                include={
+                    "session_id",
+                    "environment_epoch",
+                    "observation_id",
+                    "captured_at_ns",
+                    "frame_ref",
+                    "frame_size",
+                    "window_state",
+                },
+            )
+            for obs in self.skill.observations.values()
+        ]
+        return report
+
+
 STABLE_NAVIGATION_CLASSES = {
     "v1": StableNavigation,
     "v2": StableNavigationV2,
@@ -522,6 +616,7 @@ STABLE_NAVIGATION_CLASSES = {
     "v5": StableNavigationV5,
     "v6": StableNavigationV6,
     "v7": StableNavigationV7,
+    "v8": StableNavigationV8,
 }
 
 

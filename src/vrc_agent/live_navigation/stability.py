@@ -12,7 +12,7 @@ from vrc_agent.capture.frames import Frame
 
 
 def load_policy(version="v1"):
-    if version not in {"v1", "v2", "v3", "v4", "v5", "v6", "v7"}:
+    if version not in {"v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"}:
         raise ValueError("unknown stability policy version")
     root = files("vrc_agent.live_navigation")
     raw = root.joinpath(f"stability_{version}.json").read_bytes()
@@ -21,6 +21,19 @@ def load_policy(version="v1"):
     if digest != expected:
         raise ValueError("stability policy digest mismatch")
     policy = json.loads(raw)
+    if version == "v8":
+        from .acceptance_v8 import DECLARATION
+
+        expected_v8 = {
+            **load_policy("v6")[0],
+            "version": "local-rgb-stability-v8-candidate",
+            "status": "REQUIRES_FIELD_CALIBRATION",
+            **DECLARATION,
+        }
+        if json.dumps(policy, sort_keys=True, allow_nan=False) != json.dumps(
+            expected_v8, sort_keys=True
+        ):
+            raise ValueError("invalid v8 acceptance candidate declaration")
     if version == "v7":
         expected_v7 = {
             **load_policy("v6")[0],

@@ -63,6 +63,18 @@ class NavigationSkill:
     def target_size(self, entity) -> float:
         return area(entity)
 
+    def select_target(self, scene):
+        return target(scene, self.goal)
+
+    def recognition_predicates(self, scene):
+        return target_predicates(scene, self.goal)
+
+    def candidates(self, scene):
+        return target_candidates(scene, self.goal)
+
+    def arrival_permitted(self, scene):
+        return True
+
     def arrived(self, entity) -> bool:
         return (
             self.target_size(entity) >= self.goal.arrival_area
@@ -76,7 +88,7 @@ class NavigationSkill:
         if self.halt_reason or (recent_results and recent_results[-1].status != "COMPLETED"):
             self.last_skill = "stop"
             return ActionProposal(kind="stop", args={})
-        entity = target(scene, self.goal)
+        entity = self.select_target(scene)
         # 恢复也不能消耗一次未知观测后盲动；队列停在原处，未知预算照常消耗。
         if entity is None:
             self.last_skill = "wait"
@@ -140,12 +152,12 @@ class NavigationSkill:
             "scene_before_issue": before.generated_at_ns <= action.issued_at_ns,
         }
         valid = all(predicates.values())
-        current = target(after, self.goal) if valid else None
-        previous = target(before, self.goal) if valid else None
+        current = self.select_target(after) if valid else None
+        previous = self.select_target(before) if valid else None
         if current and current.last_seen_ns != observation.captured_at_ns:
             current = None
-        predicates.update(target_predicates(after, self.goal))
-        candidates = target_candidates(after, self.goal)
+        predicates.update(self.recognition_predicates(after))
+        candidates = self.candidates(after)
         predicates["target_timestamp_current"] = (
             len(candidates) == 1 and candidates[0].last_seen_ns == observation.captured_at_ns
         )
@@ -174,7 +186,7 @@ class NavigationSkill:
                 self.halt_reason = "TARGET_UNOBSERVED"
         else:
             self.unknowns = 0
-            near = self.arrived(current)
+            near = self.arrived(current) and self.arrival_permitted(after)
             if near:
                 context = (after.session_id, after.environment_epoch, current.track_id)
                 if self._arrival_context != context or (

@@ -38,6 +38,11 @@ class SupervisedNavigation:
     ):
         if not isinstance(client, ControllerProcess):
             raise ValueError("independent ControllerProcess required")
+        if (
+            client.config.navigation_design == "stable-inference-v8"
+            and getattr(self, "POLICY_VERSION", None) != "v8"
+        ):
+            raise ValueError("v8 acceptance requires v8 runtime")
         if not 0 < arm_timeout_s <= 120 or not 0 < task_timeout_s <= 180:
             raise ValueError("invalid supervised time budget")
         if not 1 <= inference_ms <= 1000:
@@ -47,7 +52,7 @@ class SupervisedNavigation:
         self.clock = clock or SystemClock()
         if client.config.navigation_motion_profile != "cautious" and getattr(
             self, "POLICY_VERSION", None
-        ) not in {"v6", "v7"}:
+        ) not in {"v6", "v7", "v8"}:
             raise ValueError("field motion envelope requires v6 runtime")
         self.skill = CalibratedSkill(
             world.landmark(task.group), profile=client.config.navigation_motion_profile
@@ -255,6 +260,8 @@ class SupervisedNavigation:
                 proposal = ActionProposal.model_validate(
                     raw.model_dump() if hasattr(raw, "model_dump") else raw
                 )
+                if getattr(self, "POLICY_VERSION", None) == "v8":
+                    self.event("acceptance_decision", **self.skill.last_decision)
                 if self.skill.halt_reason:
                     outcome = self.skill.halt_reason
                     break
@@ -265,6 +272,13 @@ class SupervisedNavigation:
 
                 if proposal.kind == "motion":
                     args = proposal.args
+                    if (
+                        getattr(self, "POLICY_VERSION", None) == "v8"
+                        and not self.skill.audit(scene, proposal, len(self.actions) + 1)[
+                            "proposal_permitted"
+                        ]
+                    ):
+                        raise RuntimeHalt("UNSAFE_SCENE")
                     if target(scene, self.skill.goal) is None:
                         raise RuntimeHalt("UNSAFE_SCENE")
                     if not self.motion_envelope.accepts(args):

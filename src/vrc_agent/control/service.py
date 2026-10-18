@@ -164,7 +164,11 @@ def _worker(connection, config_json: str, state_path: str, session_id: str) -> N
         startup_stage = "log"
         log = EventLog(state_dir / f"{session_id}.jsonl", session_id)
         task_timeout_s = 30.0
-        if config.navigation_design in {"stable-inference-v6", "stable-inference-v7"}:
+        if config.navigation_design in {
+            "stable-inference-v6",
+            "stable-inference-v7",
+            "stable-inference-v8",
+        }:
             from vrc_agent.live_navigation.stability import load_policy
 
             task_timeout_s = load_policy(config.navigation_design.rsplit("-", 1)[-1])[0][

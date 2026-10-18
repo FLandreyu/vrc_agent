@@ -55,7 +55,11 @@ def action_freshness_ms(config, policy=None):
         5000
         if policy
         and policy.get("version")
-        in {"local-rgb-stability-v6-candidate", "local-rgb-stability-v7-candidate"}
+        in {
+            "local-rgb-stability-v6-candidate",
+            "local-rgb-stability-v7-candidate",
+            "local-rgb-stability-v8-candidate",
+        }
         else 1500
     )
     return min(

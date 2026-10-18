@@ -7,7 +7,8 @@ def validate_attempts(report, policy):
     if "max_inference_attempts" not in report.get("run_parameters", {}):
         # 历史 schema9 保留；新格式标识存在时不得缺失对应预算。
         if (
-            policy["version"] == "local-rgb-stability-v7-candidate"
+            policy["version"]
+            in {"local-rgb-stability-v7-candidate", "local-rgb-stability-v8-candidate"}
             or any("attempt" in p for p in report.get("stability_prechecks", []))
             or any(e.get("event") == "stability_attempt" for e in report["events"])
         ):

@@ -3,3 +3,5 @@ src/vrc_agent/live_navigation/stability_v6.json -text
 src/vrc_agent/live_navigation/stability_v6.sha256 -text
 src/vrc_agent/live_navigation/stability_v7.json -text
 src/vrc_agent/live_navigation/stability_v7.sha256 -text
+src/vrc_agent/live_navigation/stability_v8.json -text
+src/vrc_agent/live_navigation/stability_v8.sha256 -text

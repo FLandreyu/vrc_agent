@@ -1226,3 +1226,16 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 - 含义：坐标、时序、绑定、帧引用、epoch/session 都没有问题；问题在"**场景整体被模型判为有危险/不确定/置信度不足**"，于是目标被视为不可采信，连续 3 次即 `TARGET_UNOBSERVED`。pilot5（5/5）与 pilot6（3/3）合计 8 次推理全部带 hazards 或 uncertainties，属系统性行为而非偶发。
 - 推论（待用户决定，非本轮结论）：这是**采信语义与模型判断粒度不匹配**，不是代码缺陷。可选方向：(甲) 固定帧配对评测提示词/额度/温度，量化过度保守；(乙) 新版本把"目标识别"与"路径安全"分离——目标识别只要求唯一、高置信、帧绑定的目标实体，危险/不确定只拦动作而非整场拒绝；(丙) 换更强模型做场景判断。三者均不得静默放宽 `clearance` 几何门槛或删除危险信号。
 - 边界：真实 live（用户在场、F9 授权、Ctrl+F9 续租 1 次），无位移输出；未改任何策略/阈值/租约。T08 仍 IN_PROGRESS，固定 20 次任务未恢复。
+
+
+## 90. T08 v8 目标识别与路径安全分离候选（2026-10-18）
+
+- 负责人 Codex，候选离线交付完成，待独立复核与用户冻结。**仅候选，非冻结，非实机验收**；T08仍IN_PROGRESS。实现/风险/完整文件清单见 [v8采信提案](validation/T08_v8_acceptance_proposal.md)。
+- 现场依据核对：pilot5原报告摘要 `6846d2ce…`，pilot6 `c9101e33…`；第89节“8/8”是5次来源+3次验证场景有hazards或uncertainties。全部来源计9/9；pilot6三次验证置信度0.85/0.85/0.75，不能写成全部<0.85。18条基础门禁仍有效，三个场景采信条件是原阻断点。
+- 新版本 `local-rgb-stability-v8-candidate`、REQUIRES_FIELD_CALIBRATION；设计键stable-inference-v8；SHA256 `908af1df0eb214af1e26312d1eb308a1094feb96f37a478136894364e7bfc0bc`。严格以v6为底，只新增显式采信声明，**未继承v7的1000ppm证据框预算**；目标/导航证据保护区仍按v6零容差。候选在任何控制/采集/推理资源前拒绝live，基类绕行也拒绝。
+- target_recognition：唯一同标签实体（先按标签计数）、goal门槛、绑定、bbox、帧可见/绑定、目标不完全遮罩。confidence作用域固定target_entity；未知为None，不用0替代，不沿用无关实体最小值；旧SceneState契约不变，新ScopedSceneV8隔离。
+- path_safety：原clearance几何/conf、恢复证据、包络与40步；整场hazards/uncertainties不否决识别，但继续否决运动和自动成功，提交前独立复算。有限等待3次暂停PATH_UNSAFE；到达几何、连续两帧及session/epoch/track不变，危险到达显式arrival_review_required并保持UNKNOWN、清空连续证据。
+- 独立schema11：acceptance_semantics、所有capture元数据、两组逐谓词、作用域/信号存在性、到达复核标志；从绑定实体/观测/动作/可信世界重算，重放verify；缺字段、伪造、候选live、旧schema混用拒绝。报告不是现场签名；原source_confidence仅历史诊断值，不参与授权。没有宣称8/8场景已能前进。
+- 候选针对性 `43 passed in 12.87s`；v8+v6/F-F联合 `90 passed in 38.13s`。首轮完整门禁3失败：两项版本闭集断言已同步（定向2通过）；旧v2真实时钟STALE原样单跑1通过，不改时限；首轮证据保存在`.runtime/v8_pytest_first_full.log`。**最终四项门禁原始输出**：`1292 passed in 393.50s (0:06:33)`；`All checks passed!`；`157 files already formatted`；`No broken requirements found.`（`.runtime/v8_{pytest,ruff,format,pip}.log`）。
+- 默认dry-run仍`mode=plan-only`、`sends_live_input=false`，世界v2摘要`b65b3dab…`，完整`.runtime/v8_dry_run.log`。保护文件逐字节自查`protected_changes []`：v1–v7策略/sidecar、世界/提示/现场配置均未改；配置保持v6+dry-run。5%/Δ2/遮罩/保护区零容差/2对预热、4000ms/180s/40步、运动包络、30秒基础租约、急停/epoch/TTL/pending_releases/到期归零不变。无live/ARM/付费模型/真实输入/密钥读取。
+- 后续：独立复核→用户决定冻结与另行授权现场复验；候选不恢复20任务批次。GraphFlow工具不可用，context/plan/index未执行，不伪造结果；交付保留本轮之前已有的TASKS编辑。
