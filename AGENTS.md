@@ -32,6 +32,8 @@ context. Treat GraphFlow output as structured, token-saving context.
 
 ## 项目工作约定
 
+- **v9 已机械冻结（2026-10-18，TASKS第104节）**：依据第101节定向复核与第103节 B1 修正件复核（**B1 已关闭、无阻断项**）及用户授权，仅把 `stable-inference-v9-candidate` 的 `status` 改为 `FROZEN`；新 SHA256 `c9fb45ee3295766e62f3ceda2c4a744aab9dd45e580d36385168a59f97e700a2`（第100/101节候选摘要 `990a1d7d…ceef0e` 为历史）。加载器无需改动：v9 分支自交付起即按 v6/v8 做法把 status 限定在 `{REQUIRES_FIELD_CALIBRATION, FROZEN}` 闭集。逐框可见面积 100 ppm/`ceil`/最少1/最多128、`exclude_masked`、全局 5%/Δ2、黑帧/尺寸/绑定、4000ms/180s/40步/3attempt、预热2对、运动包络、30s 租约与急停/epoch/TTL/到期归零均不变；v8 摘要仍 `11b98adf…80cae`。冻结后门禁 `1405 passed in 620.80s`。**现场配置仍 v8+dry-run，切到 v9 是独立决定**；T08 仍 IN_PROGRESS，20 次任务与人工逐条确认未执行。记录见 `docs/validation/T08_v9_freeze.md`。
+
 - **v9 B1实现修正（2026-10-18，TASKS第102/103节）**：`control/service.py`只在180s预算枚举补入v9一行，默认30s与v6/v7/v8装配不变；真实dry-run进程与内存续租/schema12回归见`docs/validation/T08_v9_budget_fix.md`。**已由第103节定向复核：B1 已关闭、无阻断项**（探针141项0失败、四门禁1405 passed）；仍未冻结、未切配置；策略字节不变，现场仍v8/dry-run。N2预检epoch风险未判定，只列现场复验清单；旧报告接受范围不变。
 
 - **v9 复核有阻断项 B1（2026-10-18，TASKS第101节）**：`ab37394`（摘要`990a1d7d…ceef0e`）的判据/校验/隔离/现场 11-1-2 对照主体**未能证伪**，自建探针 80 项 0 失败，四项门禁 `1394 passed in 625.83s`＋ruff/format/pip 全绿；**但 `src/vrc_agent/control/service.py:166-176` 的 `task_timeout_s` 枚举只含 v6/v7/v8，缺 v9**，冻结切现场会静默回落 30s 预算：F9 续租额度 0、30s 到期归零、`control_budget.task_timeout_ms=30,000` 与声明 180s 冲突致 schema12 报告被 `leases.py:33` 拒绝（探针已离线复现）。故 **B1 为冻结前必修**；已由第103节修正（`96917f4`）并经同节复核关闭，但 v9 仍未冻结、仍拒绝 live，现场仍 v8/dry-run，T08 仍 IN_PROGRESS。记录见[复核记录](docs/validation/T08_stability_v9_review.md)与[B1修正复核记录](docs/validation/T08_v9_budget_fix_review.md)。

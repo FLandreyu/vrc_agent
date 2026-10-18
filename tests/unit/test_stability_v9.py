@@ -19,7 +19,7 @@ from vrc_agent.live_navigation.stability_v9 import (
     verify_regions,
 )
 
-DIGEST = "990a1d7de902318f4ed04715adaa7bfd71c9c806c30fb90e82ad37a142ceef0e"
+DIGEST = "c9fb45ee3295766e62f3ceda2c4a744aab9dd45e580d36385168a59f97e700a2"
 
 
 def target(box=(0.4, 0.4, 0.6, 0.6), track="target"):
@@ -37,17 +37,19 @@ def test_candidate_has_only_new_protection_semantics_and_old_statuses_unchanged(
     assert policy == {
         **old,
         "version": "local-rgb-stability-v9-candidate",
-        "status": "REQUIRES_FIELD_CALIBRATION",
+        "status": "FROZEN",
         "protected_tolerance": TOLERANCE,
     }
     path = Path("src/vrc_agent/live_navigation/stability_v9.json")
     assert digest == DIGEST == hashlib.sha256(path.read_bytes()).hexdigest()
     assert path.with_suffix(".sha256").read_bytes() == (digest + "\r\n").encode()
-    for i in range(1, 9):
+    for i in range(1, 10):
         previous, h = load_policy(f"v{i}")
         raw = path.with_name(f"stability_v{i}.json").read_bytes()
         assert hashlib.sha256(raw).hexdigest() == h
-        assert previous["status"] == ("FROZEN" if i in (5, 6, 8) else "REQUIRES_FIELD_CALIBRATION")
+        assert previous["status"] == (
+            "FROZEN" if i in (5, 6, 8, 9) else "REQUIRES_FIELD_CALIBRATION"
+        )
 
 
 @pytest.mark.parametrize(

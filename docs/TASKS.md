@@ -1422,3 +1422,11 @@ No broken requirements found.
 - N2 边界：`stability_v9.py`、`verify_prechecks`、schema12 与旧报告的接受范围均未变，本轮不判定第101节 N2；它仍按修正文档第4节留在现场复验清单。
 - 边界与后续：**B1 关闭不等于冻结或实机验收**；v9 仍 `REQUIRES_FIELD_CALIBRATION`、仍拒绝 live，现场仍 v8/dry-run，20 次任务与人工确认未执行，T08 保持 `IN_PROGRESS`。下一步由用户决定是否冻结 v9 与切换现场配置，再做人在场的现场复验（含 G1/G3/G5 遮罩交互、真实移动对照、N2 清单）→ 20 次任务人工逐条确认。
 - 现场会话补注（N1 复核）：复核记录称 `control/service.py` “纯 LF、0 个 CRLF”，据此认为第102节与修正文档的“保留原CRLF”不实。本次以工作树字节复核：该文件 **566 行、566 个 CRLF**，插入行同样是 CRLF；`git ls-files --eol` 显示 `i/lf w/crlf`，即索引 blob 按仓库文本规范统一为 LF，而工作树保持 CRLF。故“保留原CRLF”指工作树字节，成立；复核 N1 系按 blob 行尾判断造成的误判，已在此更正，不因此修改第102节原文。其余 N2/N3 观察保留。
+## 104. T08 v9 机械冻结（2026-10-18）
+
+- 负责人现场会话；依据第101节 v9 定向复核、第103节 B1 修正件复核（**B1 已关闭、无阻断项**）与用户明确授权。本轮只做状态位移：不是新判据、不是实机验收；T08 仍 IN_PROGRESS。记录见 `docs/validation/T08_v9_freeze.md`。
+- `stability_v9.json` 的 `status` 由`REQUIRES_FIELD_CALIBRATION`改为`FROZEN`，`version` 仍`local-rgb-stability-v9-candidate`；sidecar 按冻结后字节重算，新 SHA256 `c9fb45ee3295766e62f3ceda2c4a744aab9dd45e580d36385168a59f97e700a2`（第100/101节候选摘要`990a1d7d…ceef0e`为历史，旧摘要报告不得按新语义解释）。v8 仍 `11b98adff4003ee62d40f3a6c96960f50d0d5c2d743a264f2f9dd14af2680cae`。
+- 加载器无需改动：v9 分支自交付起即把 status 限定在`{REQUIRES_FIELD_CALIBRATION, FROZEN}`闭集并严格比对声明，故本轮未改 `stability.py`、`stability_v9.py`、`stability_report.py`、`leases.py` 或 `control/`；逐框可见面积 100 ppm/ceil/最少1/最多128、`exclude_masked`、全局 5%/Δ2、黑帧/尺寸/绑定检查均不变。
+- 测试更新两个文件：`tests/unit/test_stability_v9.py` 的 `DIGEST` 改为冻结后摘要、v9 期望状态改`FROZEN`、状态闭集循环扩到 v1–v9（`FROZEN`集合`{v5,v6,v8,v9}`）；`tests/integration/test_stability_v9_runtime.py` 把“候选拒绝 live”改为“冻结后仍需三项同意＋未冻结策略仍在资源前与运行时层拒绝 live＋v9 运行时强制”，报告篡改用例`live`/`sends`改为`run_parameters`（冻结后声明 live 本身合法），并新增“未冻结策略的报告不得声明 live”。
+- 门禁（冻结后，日志`.runtime/tmp/v9_freeze_pytest.log`、`.runtime/tmp/v9_freeze_dry.log`）：`1405 passed in 620.80s (0:10:20)`；`All checks passed!`；`161 files already formatted`；`No broken requirements found.`；`navigate-live --task G2-1 --world-version v2` 默认只读计划 exit 0。定向回归 `96 passed in 61.91s`。
+- 边界与后续：冻结不等于实机验收；`configs/navigation-live.toml` 仍 v8+dry-run，切到 v9 是独立的现场配置决定；20 次任务与人工确认、G1/G3/G5 遮罩交互、第101节 N2 预检 epoch 均未执行。下一步：用户决定是否切现场配置到 v9 → 人在场试点，重点看是否出现真实 motion、稳定性拒绝是否下降、目标置信度 0.9 是否仍卡住、以及“有信号仍运动”动作的现场判读。
