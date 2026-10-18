@@ -108,7 +108,7 @@ def test_factory_and_raw_request_use_selected_format(fmt, mime):
 
 def test_actual_live_config_selects_jpeg_and_default_compatibility():
     config = load_config(Path(__file__).parents[2] / "configs/navigation-live.toml")
-    assert config.mode == "dry-run" and config.navigation_design == "stable-inference-v6"
+    assert config.mode == "dry-run" and config.navigation_design == "stable-inference-v8"
     assert config.perception.image_format == "jpeg" and config.perception.jpeg_quality == 85
     assert PerceptionConfig().image_format == "png"  # 旧配置不被静默改成有损。
 

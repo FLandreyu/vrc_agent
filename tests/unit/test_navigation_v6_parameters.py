@@ -63,7 +63,7 @@ def test_config_default_actual_and_minimum_freshness():
         and default.navigation_motion_profile == "cautious"
     )
     actual = load_config(Path("configs/navigation-live.toml"))
-    assert actual.mode == "dry-run" and actual.navigation_design == "stable-inference-v6"
+    assert actual.mode == "dry-run" and actual.navigation_design == "stable-inference-v8"
     assert (
         actual.navigation_motion_profile == "field"
         and actual.control.observation_max_age_ms == 4000

@@ -3,13 +3,13 @@
 #
 # 2026-10-17 第 54 节现场证据：思考开启且 max_tokens=1024 时 6/7 空 content；
 # 本次显式禁用思考，保持输出额度；禁用后现场记录为 7/7 返回、2.6–8.3s。
-# 第71/72节新增v6预算候选（复用v5判据），本文件显式选择v6，默认仍dry-run。
-# v6尚未重新冻结，live在创建供应商/控制器前拒绝；不沿用v5冻结授权。
+# 第71/72节新增v6预算候选（复用v5判据）；第96节 v8 已机械冻结，本文件显式选择 v8。
+# 默认仍 dry-run；live 需显式模式/授权/本机F9，20次任务按第93节人工确认到达。
 # 真实输入仍需显式live、图像/付费/标定授权与本机F9；冻结不代表20次任务验收。
 # 第64/66节改为JPEG q85上传，8000ms预算不变；生产同款时延须现场复测。
 
 mode = "dry-run"
-navigation_design = "stable-inference-v6"
+navigation_design = "stable-inference-v8"
 navigation_motion_profile = "field"
 provider = "fake"
 

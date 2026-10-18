@@ -75,6 +75,6 @@ exit 0（默认只读计划，sends_live_input=false）
 ## 5. 边界
 
 - 这是**离线机械冻结**，不是实机验收：未启动 live、未 ARM、未调用付费模型、未发送真实输入、未读取密钥。
-- `configs/navigation-live.toml` 仍为 `navigation_design="stable-inference-v6"`、`mode="dry-run"`；选用 v8 是独立的现场配置决定，不在本轮改动。
+- `configs/navigation-live.toml` 仍为 `navigation_design="stable-inference-v6"`、`mode="dry-run"`；选用 v8 是独立的现场配置决定，不在本轮改动（第 97 节已把现场配置切到 `stable-inference-v8`，`mode` 仍 `dry-run`）。
 - 第 95 节 P1-3 记录的“`status=FROZEN` 被拒”是 `c1af37e` 当时的行为，已被本节加载器改动有意放开；其余篡改反例（旧声明、旧摘要、改 requires、删作用域字段）仍然被拒。
 - 第 95 节非阻断观察 N4（模型误报 clearance 时整场危险信号不再拦运动）不因冻结而消失；20 次任务仍按第 93 节 `arrival_geometry_met` ＋人工逐条确认验收，不要求自动 SUCCESS。

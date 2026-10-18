@@ -1296,3 +1296,14 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 - 门禁（冻结后，日志`.runtime/tmp/freeze_v8_pytest2.log`、`.runtime/tmp/freeze_v8_dry.log`）：`1309 passed in 402.21s (0:06:42)`；`All checks passed!`；`157 files already formatted`；`No broken requirements found.`；`navigate-live --task G2-1 --world-version v2`默认只读计划 exit 0。定向回归`60 passed`。
 - 过程问题：首次全量出现`34 failed`（全部为`stability policy digest mismatch`），原因是编辑工具触发 JSON 自动格式化使策略字节变化而 sidecar 未变；已用`git show c1af37e:src/vrc_agent/live_navigation/stability_v8.json`原始字节做单行替换恢复（CRLF 127 处），重算 sidecar 后差异仅 1 行，判据未改。
 - 边界与后续：冻结不等于实机验收；`configs/navigation-live.toml`仍 v6+dry-run，现场改用 v8 须另行决定并把`navigation_design`切到`stable-inference-v8`；20 次任务仍按第93节`arrival_geometry_met`＋人工逐条确认，不要求自动 SUCCESS；第95节 N4（模型误报 clearance 时整场危险信号不再拦运动）不因冻结消失，现场须单列复核“有信号仍运动”的动作。记录见 `docs/validation/T08_v8_freeze.md`。
+
+## 97. T08 现场配置切换到 v8（2026-10-18）
+
+- 负责人现场会话；用户明确指示“切到v8”。依据第96节机械冻结的新摘要`11b98adff4003ee62d40f3a6c96960f50d0d5c2d743a264f2f9dd14af2680cae`（`FROZEN`）。本轮只改装配选择，不改判据、阈值、包络、时限或控制安全。
+- `configs/navigation-live.toml`：`navigation_design`由`stable-inference-v6`改为`stable-inference-v8`；`mode`仍`dry-run`；`navigation_motion_profile="field"`、`lease_ms=30000`、`lease_extension_ms=30000`、`lease_extension_max=5`、`observation_max_age_ms=4000`、`image_format="jpeg"`/`jpeg_quality=85`、`disable_thinking=true`、`max_output_tokens=1024`均未改。
+- 三处“现场配置使用哪个 design”的断言同步改为 v8（`tests/unit/test_jpeg_images.py`、`tests/unit/test_navigation_v6_parameters.py`、`tests/unit/test_t08_v5_proposal_config.py`），其余断言未改；没有任何测试被删除或放宽。
+- 验证：`load_config` 读出 `stable-inference-v8 / dry-run / field`；`load_policy("v8")` 状态 `FROZEN`；`navigate-live --task G2-1 --config configs/navigation-live.toml --world-version v2` 默认只读计划 `exit 0`（`.runtime/tmp/v8_switch_plan.log`）。
+- 门禁（日志`.runtime/tmp/v8_switch_pytest.log`）：`1309 passed in 403.27s (0:06:43)`；`All checks passed!`；`157 files already formatted`；`No broken requirements found.`。
+- 边界：切换不等于实机验收。live 仍需显式`--mode live`、标定/付费/图像三项同意、真实`openai_compat`供应商与正预算、精确且不被遮挡的窗口采集、本机 F9 ARM；IPC/JSON 的 ARM/续租仍被拒绝，30s 基础租约与到期归零不变。20 次任务仍按第93节`arrival_geometry_met`＋人工逐条确认，不要求自动 SUCCESS。
+- 随 v8 生效的已知代价（第95节 N4）：模型误报 clearance 时，整场 `has_hazards`/`has_uncertainties`不再拦运动；现场须把“有信号仍执行运动”的动作单列复核（记录 observation ID、动作、clearance 证据、实际是否接近障碍）。
+- 下一步：用户在场的 v8 首次 live 试点（单任务，建议先 G2 组几何干净的任务），逐项记录`arrival_geometry_met`、`arrival_review_required`、机器 outcome、租约续租次数与“有信号仍运动”动作；试点通过后再谈固定 20 次任务批次。
