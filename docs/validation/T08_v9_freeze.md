@@ -4,11 +4,11 @@
 
 ## 1. 冻结内容
 
-| 项 | 冻结前 | 冻结后 |
-| --- | --- | --- |
-| `stability_v9.json` `status` | `REQUIRES_FIELD_CALIBRATION` | `FROZEN` |
-| `version` | `local-rgb-stability-v9-candidate` | 不变 |
-| 策略摘要（字节 SHA-256） | `990a1d7de902318f4ed04715adaa7bfd71c9c806c30fb90e82ad37a142ceef0e`（第100/101节） | `c9fb45ee3295766e62f3ceda2c4a744aab9dd45e580d36385168a59f97e700a2` |
+| 项                           | 冻结前                                                                            | 冻结后                                                             |
+| ---------------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `stability_v9.json` `status` | `REQUIRES_FIELD_CALIBRATION`                                                      | `FROZEN`                                                           |
+| `version`                    | `local-rgb-stability-v9-candidate`                                                | 不变                                                               |
+| 策略摘要（字节 SHA-256）     | `990a1d7de902318f4ed04715adaa7bfd71c9c806c30fb90e82ad37a142ceef0e`（第100/101节） | `c9fb45ee3295766e62f3ceda2c4a744aab9dd45e580d36385168a59f97e700a2` |
 
 - `stability_v9.sha256` sidecar 已按冻结后字节重算（64 hex + CRLF，`-text`）。
 - 版本名保持不变（沿用 v5/v6/v8 的机械冻结做法）：改的是状态与摘要，不是判据。
