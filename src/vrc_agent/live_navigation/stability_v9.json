@@ -1,0 +1,135 @@
+{
+  "version": "local-rgb-stability-v9-candidate",
+  "status": "REQUIRES_FIELD_CALIBRATION",
+  "frame_size": [
+    2160,
+    1440
+  ],
+  "metric": "rgb_tolerance_visible_guard_v5",
+  "protected_mask_policy": "exclude_masked",
+  "excluded_rectangles": [
+    [
+      1536,
+      0,
+      2048,
+      512
+    ]
+  ],
+  "inference_ms": 8000,
+  "task_timeout_s": 180.0,
+  "max_actions": 40,
+  "max_inference_attempts": 3,
+  "checkpoints": [
+    "after_inference",
+    "before_submit"
+  ],
+  "freshness_ms": 4000,
+  "pixel_tolerance": 2,
+  "max_changed_ppm": 50000,
+  "protected_margin": 32,
+  "black_threshold": 8,
+  "warmup_pairs": 2,
+  "warmup_max_frames": 8,
+  "warmup_interval_ms": 100,
+  "motion_profiles": {
+    "cautious": {
+      "forward": 0.2,
+      "forward_ms": 200,
+      "strafe": 0.2,
+      "strafe_ms": 200,
+      "yaw": 1.0,
+      "yaw_ms": 200
+    },
+    "field": {
+      "forward": 0.4,
+      "forward_ms": 500,
+      "strafe": 0.2,
+      "strafe_ms": 200,
+      "yaw": 1.0,
+      "yaw_ms": 200
+    }
+  },
+  "acceptance_semantics": "target-path-v8",
+  "scene_confidence_scope": "target_entity",
+  "target_recognition": [
+    "unique_label",
+    "entity_confident",
+    "evidence_bound",
+    "bbox_legal",
+    "frame_visible",
+    "target_frame_bound",
+    "target_not_fully_masked"
+  ],
+  "target_recognition_rules": {
+    "unique_label": "exactly_one_before_confidence_filter",
+    "entity_min_confidence": "goal.min_confidence",
+    "evidence": "singleton_current_scene_observation",
+    "bbox": "finite_ordered_normalized_rectangle",
+    "mask": "v6_visible_subset_not_fully_masked",
+    "frame": "visible_bound_same_session_epoch"
+  },
+  "path_safety": {
+    "predicates": [
+      "has_hazards",
+      "has_uncertainties",
+      "scene_no_hazards",
+      "scene_no_uncertainties",
+      "forward_clearance",
+      "recovery_clearance",
+      "motion_envelope",
+      "max_actions"
+    ],
+    "clearance": {
+      "x1_max": 0.35,
+      "x2_min": 0.65,
+      "y1_max": 0.7,
+      "y2_min": 0.9,
+      "min_confidence": 0.9
+    },
+    "forward_requires": [
+      "forward_clearance",
+      "motion_envelope",
+      "max_actions"
+    ],
+    "strafe_requires": [
+      "recovery_clearance",
+      "motion_envelope",
+      "max_actions"
+    ],
+    "yaw_requires": [
+      "motion_envelope",
+      "max_actions"
+    ],
+    "wait_ms": 100,
+    "path_wait_limit": 3,
+    "recovery_evidence": "both_lateral_steps_visible_same_geometry"
+  },
+  "scene_signals": {
+    "target_recognition": "record_only",
+    "motion": "record_only",
+    "arrival_success": "record_review_required",
+    "report_scope": "whole_scene_presence_no_text"
+  },
+  "arrival_acceptance": {
+    "consecutive_new_observations": 2,
+    "continuity": [
+      "session_id",
+      "environment_epoch",
+      "track_id"
+    ],
+    "geometry": "unchanged_selected_world",
+    "hazards_or_uncertainties": "record_review_required_and_no_automatic_success",
+    "field_acceptance": "arrival_geometry_met_and_manual_confirmation",
+    "automatic_success": "clean_scene_two_new_observations_only"
+  },
+  "scene_signal_motion_effect": "record_only",
+  "scene_signal_arrival_effect": "record_review_required",
+  "protected_tolerance": {
+    "policy": "per_visible_region_ppm_clamped_v1",
+    "max_changed_ppm": 100,
+    "min_allowed_px": 1,
+    "max_allowed_px": 128,
+    "rounding": "ceil",
+    "regions": "independent"
+  }
+}

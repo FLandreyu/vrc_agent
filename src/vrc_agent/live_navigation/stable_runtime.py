@@ -40,7 +40,7 @@ class StableNavigation(SupervisedNavigation):
         self.inference_ms = self.policy["inference_ms"]
         self.task_timeout_s = self.policy["task_timeout_s"]
         self.action_freshness_ms = action_freshness_ms(self.client.config, self.policy)
-        if policy_version in {"v6", "v7", "v8"}:
+        if policy_version in {"v6", "v7", "v8", "v9"}:
             self.max_actions = self.policy["max_actions"]
         self.reference = None
         self.proofs = []
@@ -119,7 +119,7 @@ class StableNavigation(SupervisedNavigation):
             derived_from=proof["reference_observation_id"],
             **(
                 {"scene_generated_at_ns": scene.generated_at_ns}
-                if self.policy_version == "v8"
+                if self.policy_version in {"v8", "v9"}
                 else {}
             ),
         )
@@ -209,7 +209,7 @@ class StableNavigation(SupervisedNavigation):
                 **self.source_audit(evidence),
                 **(
                     {"scene_generated_at_ns": source_scene.generated_at_ns}
-                    if self.policy_version == "v8"
+                    if self.policy_version in {"v8", "v9"}
                     else {}
                 ),
             )
@@ -255,10 +255,11 @@ class StableNavigation(SupervisedNavigation):
             "v6": 7,
             "v7": 10,
             "v8": 11,
+            "v9": 12,
         }[self.policy_version]
         report["stability_policy"] = {"digest": self.policy_digest, **self.policy}
         report["stability_proofs"] = self.proofs
-        if self.policy_version in {"v6", "v7", "v8"}:
+        if self.policy_version in {"v6", "v7", "v8", "v9"}:
             report["run_parameters"] = {
                 "motion_profile": self.client.config.navigation_motion_profile,
                 "motion_envelope": asdict(self.motion_envelope),
@@ -608,6 +609,15 @@ class StableNavigationV8(StableNavigationV6):
         return report
 
 
+class StableNavigationV9(StableNavigationV8):
+    POLICY_VERSION = "v9"
+
+    async def run(self):
+        report = await super().run()
+        report["schema_version"] = 12
+        return report
+
+
 STABLE_NAVIGATION_CLASSES = {
     "v1": StableNavigation,
     "v2": StableNavigationV2,
@@ -617,6 +627,7 @@ STABLE_NAVIGATION_CLASSES = {
     "v6": StableNavigationV6,
     "v7": StableNavigationV7,
     "v8": StableNavigationV8,
+    "v9": StableNavigationV9,
 }
 
 

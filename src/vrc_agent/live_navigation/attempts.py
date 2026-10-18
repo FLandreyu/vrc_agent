@@ -8,7 +8,11 @@ def validate_attempts(report, policy):
         # 历史 schema9 保留；新格式标识存在时不得缺失对应预算。
         if (
             policy["version"]
-            in {"local-rgb-stability-v7-candidate", "local-rgb-stability-v8-candidate"}
+            in {
+                "local-rgb-stability-v7-candidate",
+                "local-rgb-stability-v8-candidate",
+                "local-rgb-stability-v9-candidate",
+            }
             or any("attempt" in p for p in report.get("stability_prechecks", []))
             or any(e.get("event") == "stability_attempt" for e in report["events"])
         ):

@@ -39,10 +39,13 @@ class SupervisedNavigation:
         if not isinstance(client, ControllerProcess):
             raise ValueError("independent ControllerProcess required")
         if (
-            client.config.navigation_design == "stable-inference-v8"
-            and getattr(self, "POLICY_VERSION", None) != "v8"
+            client.config.navigation_design in {"stable-inference-v8", "stable-inference-v9"}
+            and getattr(self, "POLICY_VERSION", None)
+            != client.config.navigation_design.rsplit("-", 1)[-1]
         ):
-            raise ValueError("v8 acceptance requires v8 runtime")
+            raise ValueError(
+                f"{client.config.navigation_design} acceptance requires {client.config.navigation_design.rsplit('-', 1)[-1]} runtime"
+            )
         if not 0 < arm_timeout_s <= 120 or not 0 < task_timeout_s <= 180:
             raise ValueError("invalid supervised time budget")
         if not 1 <= inference_ms <= 1000:
@@ -52,7 +55,7 @@ class SupervisedNavigation:
         self.clock = clock or SystemClock()
         if client.config.navigation_motion_profile != "cautious" and getattr(
             self, "POLICY_VERSION", None
-        ) not in {"v6", "v7", "v8"}:
+        ) not in {"v6", "v7", "v8", "v9"}:
             raise ValueError("field motion envelope requires v6 runtime")
         self.skill = CalibratedSkill(
             world.landmark(task.group), profile=client.config.navigation_motion_profile
@@ -260,7 +263,7 @@ class SupervisedNavigation:
                 proposal = ActionProposal.model_validate(
                     raw.model_dump() if hasattr(raw, "model_dump") else raw
                 )
-                if getattr(self, "POLICY_VERSION", None) == "v8":
+                if getattr(self, "POLICY_VERSION", None) in {"v8", "v9"}:
                     self.event("acceptance_decision", **self.skill.last_decision)
                 if self.skill.halt_reason:
                     outcome = self.skill.halt_reason
@@ -273,7 +276,7 @@ class SupervisedNavigation:
                 if proposal.kind == "motion":
                     args = proposal.args
                     if (
-                        getattr(self, "POLICY_VERSION", None) == "v8"
+                        getattr(self, "POLICY_VERSION", None) in {"v8", "v9"}
                         and not self.skill.audit(scene, proposal, len(self.actions) + 1)[
                             "proposal_permitted"
                         ]
@@ -281,7 +284,7 @@ class SupervisedNavigation:
                         raise RuntimeHalt("UNSAFE_SCENE")
                     recognized = (
                         self.skill.select_target(scene)
-                        if getattr(self, "POLICY_VERSION", None) == "v8"
+                        if getattr(self, "POLICY_VERSION", None) in {"v8", "v9"}
                         else target(scene, self.skill.goal)
                     )
                     if recognized is None:

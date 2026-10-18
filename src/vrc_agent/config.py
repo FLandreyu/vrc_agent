@@ -219,6 +219,7 @@ class AppConfig(Contract):
         "stable-inference-v6",
         "stable-inference-v7",
         "stable-inference-v8",
+        "stable-inference-v9",
     ] = "legacy"
     navigation_motion_profile: Literal["cautious", "field"] = "cautious"
     mode: Literal["dry-run", "live"] = "dry-run"
@@ -237,6 +238,7 @@ class AppConfig(Contract):
                 "stable-inference-v6",
                 "stable-inference-v7",
                 "stable-inference-v8",
+                "stable-inference-v9",
             }:
                 raise ValueError("local lease extensions require v6")
             from vrc_agent.live_navigation.stability import load_policy
@@ -254,6 +256,7 @@ class AppConfig(Contract):
             "stable-inference-v6",
             "stable-inference-v7",
             "stable-inference-v8",
+            "stable-inference-v9",
         } and (
             self.navigation_motion_profile != "cautious"
             or self.control.observation_max_age_ms > 1500
@@ -263,6 +266,7 @@ class AppConfig(Contract):
             "stable-inference-v6",
             "stable-inference-v7",
             "stable-inference-v8",
+            "stable-inference-v9",
         }:
             required = 500 if self.navigation_motion_profile == "field" else 200
             if self.control.max_motion_ms < required:

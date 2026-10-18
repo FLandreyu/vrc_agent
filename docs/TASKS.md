@@ -1334,12 +1334,13 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 
 三次合计 12 次模型调用、`$0.010714`、**0 个 motion**。阶段耗时 p50 与第98节一致（capture ≈306–325 ms、encode ≈37–90 ms、infer ≈2.44–2.89 s、stability ≈387–408 ms、submit ≈20 ms）。
 
-### 99.2 拒绝原因分布（10 次拒绝）
+### 99.2 拒绝原因分布（9 次执行证据拒绝 + 5 次预检拒绝 = 14 次）
 
-`protected_changed`（保护区变化像素）实际观测：**1、1、2、4、5、21、44**，对应保护区可见像素 `57,525 / 126,036 / 153,900 / 838,192 / 1,156,946 / 1,282,226`，即 **7–34 ppm**。全局变化在 6 次拒绝中是 4、7、9、51、4,178、4,233 px（0.0001%–0.15%，远低于 5% 门槛）；另两次为 41,811 px（1.47%）与 **1,202,965 px（42%）**，后者属真实画面大变化。
+9 次执行证据拒绝的全局变化为 4、7、9、51、109、4,178、4,233、41,811、1,202,965 px；其中 **8 次由 `protected_changed` 触发**（1、1、1、2、4、5、21、44 px），按各框可见面积计约 4–34 ppm；只有 **1,202,965 px（42%）** 一次由全局 5% 超限拒绝。另有 5 次预检拒绝（G2-1 1 次、G2-2 2 次、G4-1 2 次）。逐项对照见第100节交付与 `docs/validation/T08_stability_v9.md` 第 3.1 节。
 
 - 结论一：**保护区零容差在 ppm 级噪声上失效**。即便目标框单独成保护区（`protected_visible_px≈57k–154k`）也会出现 1–2 px 抖动，说明这是渲染抖动（TAA/抗锯齿级别），不是场景运动。
-- 结论二：41,811 px 与 1.2M px 两次拒绝是**真实变化**，容差若设在 100 ppm（保护区约 1.28M×100ppm≈128 px）仍会拒绝它们，说明“ppm 容差”能把噪声与真实变化分开。
+- 结论二：`1,202,965 px` 的拒绝由全局 5% 门槛独立完成，与保护区容差无关；`41,811 px` 那帧保护区内只变 1 px（17.4 ppm），按 `ceil(57,525×100ppm)=6 px` 在 v9 下判为通过——其框外 41,810 px（1.47%）在 v8 冻结的全局门槛内本就允许。
+- 结论三（更正）：本节初稿写的“10 次拒绝”与“6 次全局变化”是我方汇总错误；原始工件为 **9 次执行证据拒绝＋5 次预检拒绝**，且 21/44 px 只有并集计数、无法还原落在目标框还是地板框，故不宣称这两项在 v9 下必过。
 
 ### 99.3 另一个独立瓶颈：目标实体置信度门槛 0.9
 
@@ -1350,6 +1351,29 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 ### 99.4 判读与下一步
 
 - v8 运动许可语义三次运行均**未被证伪**：hazards/uncertainties 全为 true 但未否决运动；无 clearance 时 `proposal_permitted=false` 且派发 wait；有 clearance 且目标可信时许可。
-- 但**实际推进被两层前置条件吃掉**：①保护区零容差导致的稳定性重试（10 次拒绝中 8 次是 ppm 级噪声）；②目标实体置信度 0.55–0.72 低于 0.9。三次运行都没走到“许可运动”这一步。
+- 但**实际推进被两层前置条件吃掉**：①保护区零容差导致的稳定性重试（9 次执行证据拒绝中 8 次是 ppm 级噪声，另有 5 次预检拒绝）；②目标实体置信度 0.55–0.72 低于 0.9。三次运行都没走到“许可运动”这一步。
 - 建议下一步（按用户选择 C 的第二半）：由实现方提出**v9 候选**，只改稳定性保护区的容差口径（按区域 ppm 容差，建议 100 ppm 起评），不改全局 5%/Δ2、不改遮罩、不改 clearance 几何、不改 v8 冻结字节；目标置信度门槛另案讨论，不与本次稳定性修订混在一起。
 - 记录边界：三次运行均为 G2/G4 干净组，未覆盖 G1/G3/G5；`arrival_geometry_met` 未出现，人工确认表本轮为空；N4（有信号仍运动）因 0 motion 仍未被现场检验。
+
+## 100. T08 v9 逐保护区 ppm 候选（2026-10-18）
+
+- 状态：候选实现已交付，待另一执行者按ADR-009独立复核与用户决定；T08保持IN_PROGRESS。负责人：Codex。新候选沿用冻结v8，只有逐保护区容差变化；不是冻结，不是实机验收。
+- 用户已明确选择保持范围：原始G4-1报告41,811 px为全局变化、保护区仅1 px（57,525可见px），全局1.47%未超5%。因此允许该样本通过v9像素稳定性检查，在提案显式记录框外真实变化风险；不新增其它判据。
+- 原始报告核对为9次执行证据拒绝＋5次预检拒绝，共14次；旧汇总10次与工件不符，交付逐项列出。多框21/44 px仅有合并计数，不伪造为逐框必过。
+- 不启动live、不ARM、不调付费模型、不发真实输入、不读密钥；旧策略、世界、提示、现场配置及控制层均不动。GraphFlow工具在本会话不可调用，按项目回退约定直接核对文件，未伪造context/plan/index结果。
+- 最终策略：`stability_v9.json/.sha256`，`local-rgb-stability-v9-candidate`、`REQUIRES_FIELD_CALIBRATION`，SHA256 **`990a1d7de902318f4ed04715adaa7bfd71c9c806c30fb90e82ad37a142ceef0e`**（sidecar小写hex+CRLF，66字节）。相对v8只改version/status并新增`protected_tolerance`；加载器严格比对声明与状态闭集。用户末次更正为逐框可见面积V、100 ppm、ceil、至少1 px、最多128 px：`min(V,128,max(1,(V*100+999999)//1000000))`，`changed>A`拒绝；不合并面积或预算。遮罩按用户明确更正保持`exclude_masked`，部分交叠扣除、完全遮罩沿`require_visible`拒绝；分母不是原矩形面积，不能借另一框绕过完全遮罩拒绝。
+- 装配与报告：新键`stable-inference-v9`、`StableNavigationV9`、独立schema12；共享原v8目标/路径/到达采信语义。候选在任何采集/供应商/控制器资源前拒绝live，直接构造live运行时也拒绝。逐次证明新增`changed_runs`、`protected_regions`（各框changed/allowed/ppm/visible及身份/几何）、`tolerance_policy`；从观测实体与位置见证重算全部新旧审计字段，连同stable、schema与声明类型严格比对；预检不是动作证据，原两次检查点和三次attempt共享预算保留。代码/文件清单见`docs/validation/T08_stability_v9.md`第8节。
+- 现场证据：`.runtime/verify/t08_v9_field_audit.py`只读核对14次拒绝，输出`t08_v9_field_audit.json`；11项可据现有计数保证通过、1项由全局42%继续拒绝、21/44 px两项缺逐框位置而UNKNOWN。41,811 px按用户更正为“拒绝→通过”，理由为目标保护框仅1 px噪声、现场判读目标未移动；框外≤5%真实局部变化属于v8已有容忍度，不在v9夹带新增收紧判据。旧报告无原始帧，不伪称真实逐帧重放或物理真实性证明。
+- 测试：最终规则定向`82 passed in 68.72s (0:01:08)`；新增声明类型伪造三项`3 passed, 50 deselected in 5.44s`；覆盖allowed/allowed+1、精确ppm、目标1–2 px、双框不共享预算、部分遮罩分母/完全遮罩不可借面积、1,202,965全局拒绝、41,811/1更正、所有审计字段伪造、schema隔离/候选门禁、两检查点/三次上限、4000ms与有信号到达不得假成功。
+- 最终四项门禁原始输出（均exit 0；日志`.runtime/verify/t08_v9_{pytest,ruff_check,ruff_format,pip_check}.log`）：
+
+```text
+1394 passed in 446.95s (0:07:26)
+All checks passed!
+160 files already formatted
+No broken requirements found.
+```
+
+- 默认只读计划：`.venv/Scripts/python.exe -m vrc_agent navigate-live --task G2-1 --config configs/navigation-live.toml --world-version v2`，exit 0，输出`"mode": "plan-only"`、`"sends_live_input": false`、世界v2摘要`b65b3dab51ef720c44b942d7ed67a975fbc52ed2bc1c65610718dc47b23d1ac0`；完整输出`.runtime/verify/t08_v9_dry_run.log`。该命令是只读计划，不证明v9可live。
+- 不变项：29文件基线全部一致，其中v1–v8的16份JSON/sidecar逐字节一致；世界v1/v2摘要、世界文件/提示/configs/control无修改。现场仍v8/dry-run、30s基础租约；全局5%/Δ2/遮罩、目标七谓词/clearance/到达、预热2对、4000ms/180s/40步/3次、包络、急停/epoch/TTL/到期归零不改。自查工件`.runtime/verify/t08_v9_invariants.json`；v8冻结摘要仍`11b98adff4003ee62d40f3a6c96960f50d0d5c2d743a264f2f9dd14af2680cae`。
+- 注意：ceil/1px替代了本轮未交付的floor/2px草稿，旧草稿全量与补严报告声明前的全量均主动中止、不计门禁，最终以上述新摘要重跑结果为准。未来冻结前须核对控制进程新设计预算装配（本轮依边界未改control设计枚举，候选在资源前拒绝）；不能只改status就宣称现场已就绪。下一步独立复核→用户决定→含G1/G3/G5遮罩交互及目标/障碍真实移动对照的现场复验；20次任务与人工确认尚未验收。

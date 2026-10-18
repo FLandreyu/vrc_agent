@@ -16,21 +16,24 @@ def same(actual, expected):
         raise ValueError("v8 acceptance evidence mismatch")
 
 
-def validate_acceptance(report):
+def validate_acceptance(report, *, policy_version="v8", schema_version=11):
+    # v9仅换像素判据，采信语义仍为target-path-v8；schema/策略配对不可任意指定。
+    if {"v8": 11, "v9": 12}.get(policy_version) != schema_version:
+        raise ValueError("invalid acceptance policy/schema pairing")
     try:
-        _validate_acceptance(report)
+        _validate_acceptance(report, policy_version, schema_version)
     except (KeyError, TypeError, IndexError, AttributeError) as exc:
         raise ValueError("missing or invalid v8 acceptance evidence") from exc
 
 
-def _validate_acceptance(report):
+def _validate_acceptance(report, policy_version, schema_version):
     if (
         type(report.get("schema_version")) is not int
-        or report["schema_version"] != 11
+        or report["schema_version"] != schema_version
         or report.get("acceptance_semantics") != SEMANTICS
     ):
         raise ValueError("v8 acceptance requires schema11 and semantics")
-    policy, _ = load_policy("v8")
+    policy, _ = load_policy(policy_version)
     version = {"vrchat-home-live-v1": "v1", "vrchat-home-live-v2": "v2"}[report["world_version"]]
     world = load_live_world(version)
     same(report["suite_digest"], world.digest())

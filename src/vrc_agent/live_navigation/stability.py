@@ -12,7 +12,7 @@ from vrc_agent.capture.frames import Frame
 
 
 def load_policy(version="v1"):
-    if version not in {"v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"}:
+    if version not in {"v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9"}:
         raise ValueError("unknown stability policy version")
     root = files("vrc_agent.live_navigation")
     raw = root.joinpath(f"stability_{version}.json").read_bytes()
@@ -21,6 +21,22 @@ def load_policy(version="v1"):
     if digest != expected:
         raise ValueError("stability policy digest mismatch")
     policy = json.loads(raw)
+    if version == "v9":
+        from .stability_v9 import TOLERANCE
+
+        expected_v9 = {
+            **load_policy("v8")[0],
+            "version": "local-rgb-stability-v9-candidate",
+            "status": policy.get("status"),
+            "protected_tolerance": TOLERANCE,
+        }
+        if (
+            type(policy.get("status")) is not str
+            or policy["status"] not in {"REQUIRES_FIELD_CALIBRATION", "FROZEN"}
+            or json.dumps(policy, sort_keys=True, allow_nan=False)
+            != json.dumps(expected_v9, sort_keys=True)
+        ):
+            raise ValueError("invalid v9 protection candidate declaration")
     if version == "v8":
         from .acceptance_v8 import DECLARATION
 
@@ -88,6 +104,10 @@ def masked_rgb(frame: Frame, policy: dict) -> bytes:
 
 
 def compare(reference: Frame, current: Frame, policy: dict, entities=()) -> dict:
+    if policy.get("version") == "local-rgb-stability-v9-candidate":
+        from .stability_v9 import compare_v9
+
+        return compare_v9(reference, current, policy, entities)
     if policy.get("version") == "local-rgb-stability-v7-candidate":
         from .stability_v7 import compare_v7
 
