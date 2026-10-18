@@ -809,7 +809,7 @@ def parser() -> argparse.ArgumentParser:
         "navigate-live", help="calibrated navigation; default: plan only"
     )
     navigate.add_argument("--task", required=True)
-    navigate.add_argument("--world-version", choices=["v1", "v2"], default="v1")
+    navigate.add_argument("--world-version", choices=["v1", "v2", "v3"], default="v1")
     navigate.add_argument("--mode", choices=["dry-run", "live"], default="dry-run")
     navigate.add_argument("--config", type=Path)
     navigate.add_argument("--state-dir", type=Path, default=Path(".runtime"))
@@ -824,7 +824,7 @@ def parser() -> argparse.ArgumentParser:
         "navigation-report", help="summarize fixed live 20-task reports; missing/duplicates fail"
     )
     summary.add_argument("--report-dir", type=Path, default=Path(".runtime/navigation-live"))
-    summary.add_argument("--world-version", choices=["v1", "v2"], default="v1")
+    summary.add_argument("--world-version", choices=["v1", "v2", "v3"], default="v1")
     perceive = commands.add_parser(
         "perceive", help="offline perception smoke test: observations -> constrained scenes"
     )

@@ -70,7 +70,7 @@ def action_freshness_ms(config, policy=None):
     )
 
 
-def validate_run_parameters(parameters, policy):
+def validate_run_parameters(parameters, policy, *, target_min_confidence=None):
     if not isinstance(parameters, dict):
         raise ValueError("missing v6 run parameters")
     freshness = parameters.get("freshness_ms")
@@ -86,6 +86,8 @@ def validate_run_parameters(parameters, policy):
     }
     if "max_inference_attempts" in parameters:
         expected["max_inference_attempts"] = policy["max_inference_attempts"]
+    if "target_min_confidence" in parameters:
+        expected["target_min_confidence"] = target_min_confidence
     # JSON严格比较避免True==1.0等数值等价绕过；只比较受信闭集，不回声载荷。
     try:
         matches = json.dumps(parameters, sort_keys=True, allow_nan=False) == json.dumps(

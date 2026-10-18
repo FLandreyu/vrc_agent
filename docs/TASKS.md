@@ -1535,3 +1535,44 @@ No broken requirements found.
   3. **维持 0.9**：则 G2-2/G4-1 基本无法起步，20 次批次只能覆盖 G1/G3/G5 中置信度高的位姿，达不到 ≥16/20。
 - 风险提示：降低识别门槛会放宽“唯一目标可信”的第一道过滤；仍需保留其余 6 个识别谓词（唯一标签、bbox 合法、可见、绑定观测/帧、session/epoch、保护区可见）以及 clearance、包络、到达几何与人在场约束。0.55 桶被接受的风险最高，方案 1 不接受它。
 - 下一步：用户选方案 → 实现方出候选（世界或 skill 门槛参数）→ 独立复核 → 冻结 → 现场复验（含 G1/G3/G5 的置信度分布，目前尚未测量）。
+
+## 110. T08 world v3 按地标显式识别门槛候选（2026-10-18）
+
+- 状态：候选实现已交付，待独立复核与用户冻结；T08仍IN_PROGRESS；负责人：Codex。依据第107/109节与用户末次明确更正，新世界候选G2/G4=0.7，G1/G3/G5=0.85；旧世界文件/sidecar、稳定性策略、control/提示/configs不改，不冻结、不切现场配置、不调用真实模型/输入。
+- 基线核对及用户更正：目标识别当前为0.85，不是0.9；v1/v2全部显式映射0.85，v3未测量地标也保持0.85，不收紧。clearance实体独立的0.9不改，不与目标门槛混用。初始任务书关于v2=0.9、G1/G3/G5=0.9的要求以本次更正为准。GraphFlow工具当前不可调用，按项目回退约定直接核对文件，未伪造context/plan/index。
+- 现场数据已核对两份本地JSON：G2-2为21条观测（0.72×14、0.82×2、0.9×5），G4-1为21条（0.72×20、0.82×1）；共14张固定帧×3轮=42条观测，非42张独立帧。该批无0.55，0.55拒绝另以第107节现场记录及内存反例验证。
+- 候选产物：`src/vrc_agent/skills/worlds/vrchat_home_live_v3.json/.sha256`，世界schema3/version=`vrchat-home-live-v3`/status=`REQUIRES_FIELD_CALIBRATION`；语义摘要`3e7b4566cfabcb6d2527c5d221b4e9d0427b542adb8d6183bc13cf90d3d9885f`，JSON原始字节SHA256=`1ab6014836c030a8f9e0fc29d06ab54c2df9bee2f6a96d0f6fa338e245bb0b33`。sidecar沿用世界既有规范化模型摘要，不混称文件字节摘要；v2原来源字段保留，另增显式v2来源摘要。
+- 装配与报告：loader按世界类型显式提供门槛，v3必填、严格类型/范围/授权值，不存在缺字段回落；skill不再硬编码目标门槛。CLI支持显式v3，只读计划可查看；live入口及运行时构造均拒绝候选，前者在任何配置/供应商/采集/控制资源前拒绝。新稳定报告`run_parameters.target_min_confidence`记录实际值，校验器按世界版本/摘要/任务地标重算；v3缺失或伪造拒绝，旧v1/v2历史无字段报告保留兼容，仍按显式0.85解释。
+- 定向回归：`113 passed in 116.43s (0:01:56)`（`.runtime/verify/t08_world_v3_focused.log`），涵盖新unit/integration、世界v2装配及v9报告。0.7/0.699/0.55、G1/G3/G5与v1/v2的0.85、必填字段/类型伪造、42条观测＋另3条更远0.55、其它识别谓词、clearance0.9与几何、有信号运动但不假成功、无clearance只能wait、候选资源前拒绝及报告防伪均有回归。
+- 改动清单（19文件）：`.gitattributes`、`AGENTS.md`、`docs/TASKS.md`、`docs/validation/T08_world_v3_confidence.md`；`src/vrc_agent/cli.py`；`live_navigation/`下`world.py`、`skill.py`、`session.py`、`runtime.py`、`stable_runtime.py`、`parameters.py`、`stability_report.py`、`acceptance_report_v8.py`；新世界json/sidecar两文件；`tests/unit/test_live_world_v2.py`（未知版本探针v3→v4）、新增`tests/unit/test_world_v3_confidence.py`、`tests/integration/test_world_v3_runtime.py`与`tests/fixtures/world_v3_confidence.json`。
+- 不变项自查：开工114个既有源码/config文件逐字节比较，只有上述9个生产源码变化；稳定性v1–v9 json/sidecar共18个、旧世界v1/v2 json/sidecar共4个、control/、configs/、`acceptance_v8.py`原判据均未改。旧世界10份实际生成提示与基线一致，v3五份提示逐一等于v2。证据`.runtime/verify/t08_world_v3_invariants.json`；v9冻结摘要仍`c9fb45ee3295766e62f3ceda2c4a744aab9dd45e580d36385168a59f97e700a2`。4000ms/180s/40步/3attempt、预热2对、运动包络、30s基础租约、急停/epoch/TTL/归零、超时直接停止、信号/自动SUCCESS/到达几何未改。
+- 提案与复验：见`docs/validation/T08_world_v3_confidence.md`。本批G4虽目标可采信但clearance为0/21，不承诺能前进；降低门槛增加误认风险。候选交付不等于独立复核、用户冻结或实机验收；现场仍v9＋世界v2＋dry-run，不恢复20任务、不将T08标DONE。
+
+### 110.1 四项门禁原始输出
+
+均使用项目虚拟环境，exit 0。日志前缀`.runtime/verify/t08_world_v3_`，依次为`pytest.log`、`ruff_check.log`、`ruff_format.log`、`pip_check.log`。
+
+```text
+.venv/Scripts/python.exe -m pytest -q
+1459 passed in 295.33s (0:04:55)
+
+.venv/Scripts/python.exe -m ruff check src tests
+All checks passed!
+
+.venv/Scripts/python.exe -m ruff format --check src tests
+163 files already formatted
+
+.venv/Scripts/python.exe -m pip check
+No broken requirements found.
+```
+
+### 110.2 默认只读计划
+
+```text
+.venv/Scripts/python.exe -m vrc_agent navigate-live --task G2-1 --config configs/navigation-live.toml --world-version v2
+"mode": "plan-only"
+"sends_live_input": false
+"suite_digest": "b65b3dab51ef720c44b942d7ed67a975fbc52ed2bc1c65610718dc47b23d1ac0"
+```
+
+exit 0；完整输出`.runtime/verify/t08_world_v3_plan_v2.log`。附加显式`--world-version v3`同样只读、exit 0，摘要`3e7b4566cfabcb6d2527c5d221b4e9d0427b542adb8d6183bc13cf90d3d9885f`、世界状态`REQUIRES_FIELD_CALIBRATION`（`t08_world_v3_plan_v3.log`）；未创建真实资源。`git diff --check`通过；GraphFlow index当前无可调用工具，未伪称已索引。

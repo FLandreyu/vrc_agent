@@ -43,6 +43,7 @@ async def navigation_entry(args):
             "task": task.model_dump(mode="json"),
             "note": "Live requires explicit mode, calibrated environment, real vision, image/paid consent and local F9 ARM.",
         }
+    world.require_live()
     config = load_config(args.config)
     if not args.confirm_calibration or not args.allow_paid or not args.send_images:
         raise ValueError("live requires calibration confirmation, paid and image consent")
@@ -166,7 +167,7 @@ def summarize_reports(directory: Path, *, world_version="v1") -> dict:
             ):
                 raise ValueError("report provenance mismatch")
             # v2 报告必须显式声明版本；v1 兼容早期未携带版本字段的报告。
-            if (world_version == "v2" or "world_version" in report) and report.get(
+            if (world_version in {"v2", "v3"} or "world_version" in report) and report.get(
                 "world_version"
             ) != world.version:
                 raise ValueError("report world version mismatch")

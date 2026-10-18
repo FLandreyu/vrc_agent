@@ -114,7 +114,7 @@ def test_v2_contract_rejects_wrong_lineage_or_schema(fault):
 
 
 def test_unknown_world_never_becomes_a_path():
-    for name in ("v3", "../v1", ""):
+    for name in ("v4", "../v1", ""):
         with pytest.raises(ValueError, match="unknown live world"):
             load_live_world(name)
 

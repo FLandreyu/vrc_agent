@@ -7,3 +7,5 @@ src/vrc_agent/live_navigation/stability_v8.json -text
 src/vrc_agent/live_navigation/stability_v8.sha256 -text
 src/vrc_agent/live_navigation/stability_v9.json -text
 src/vrc_agent/live_navigation/stability_v9.sha256 -text
+src/vrc_agent/skills/worlds/vrchat_home_live_v3.json -text
+src/vrc_agent/skills/worlds/vrchat_home_live_v3.sha256 -text

@@ -41,7 +41,10 @@ class CalibratedSkill(NavigationSkill):
         self.path_waits = 0
         super().__init__(
             NavigationGoal(
-                label=landmark.label, min_confidence=0.85, arrival_area=1.0, progress_epsilon=0.02
+                label=landmark.label,
+                min_confidence=landmark.recognition_min_confidence(),
+                arrival_area=1.0,
+                progress_epsilon=0.02,
             ),
             NavigationLimits(centre_tolerance=landmark.arrival.centre_tolerance),
         )

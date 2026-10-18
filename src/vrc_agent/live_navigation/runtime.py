@@ -48,6 +48,8 @@ class SupervisedNavigation:
             )
         if not 0 < arm_timeout_s <= 120 or not 0 < task_timeout_s <= 180:
             raise ValueError("invalid supervised time budget")
+        if client.config.mode == "live":
+            world.require_live()
         if not 1 <= inference_ms <= 1000:
             raise ValueError("inference must fit fresh-observation budget")
         self.client, self.source_factory, self.perception = client, source_factory, perception

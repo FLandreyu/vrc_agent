@@ -7,6 +7,7 @@ from vrc_agent.contracts import Entity
 from .parameters import validate_run_parameters
 from .stability import load_policy
 from .stability_v2 import protected_rectangles
+from .world import validate_report_confidence
 
 SCHEMAS = {"v1": 2, "v2": 3, "v3": 4, "v4": 5, "v5": 6, "v6": 9, "v7": 10, "v8": 11, "v9": 12}
 WARMUP_VERSIONS = {"v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9"}
@@ -151,6 +152,7 @@ def validate_feedback_diagnostics(report):
 
 
 def validate_stability_report(report):
+    target_min_confidence = validate_report_confidence(report)
     validate_feedback_diagnostics(report)
     if report.get("navigation_design") in {"stable-inference-v8", "stable-inference-v9"}:
         from .acceptance_report_v8 import validate_acceptance
@@ -233,7 +235,9 @@ def validate_stability_report(report):
     if report.get("stability_policy") != {"digest": digest, **policy}:
         raise ValueError("stability policy mismatch")
     if version in {"v6", "v7", "v8", "v9"}:
-        policy = validate_run_parameters(report.get("run_parameters"), policy)
+        policy = validate_run_parameters(
+            report.get("run_parameters"), policy, target_min_confidence=target_min_confidence
+        )
         if policy["status"] != "FROZEN" and (
             report.get("mode") == "live" or report.get("sends_live_input") is True
         ):

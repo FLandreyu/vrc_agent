@@ -34,7 +34,11 @@ def _validate_acceptance(report, policy_version, schema_version):
     ):
         raise ValueError("v8 acceptance requires schema11 and semantics")
     policy, _ = load_policy(policy_version)
-    version = {"vrchat-home-live-v1": "v1", "vrchat-home-live-v2": "v2"}[report["world_version"]]
+    version = {
+        "vrchat-home-live-v1": "v1",
+        "vrchat-home-live-v2": "v2",
+        "vrchat-home-live-v3": "v3",
+    }[report["world_version"]]
     world = load_live_world(version)
     same(report["suite_digest"], world.digest())
     skill = AcceptanceSkillV8(

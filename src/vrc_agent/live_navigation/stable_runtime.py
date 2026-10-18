@@ -266,6 +266,7 @@ class StableNavigation(SupervisedNavigation):
                 "freshness_ms": self.action_freshness_ms,
                 "task_timeout_s": self.task_timeout_s,
                 "max_actions": self.max_actions,
+                "target_min_confidence": self.skill.goal.min_confidence,
             }
         return report
 

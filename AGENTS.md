@@ -32,6 +32,8 @@ context. Treat GraphFlow output as structured, token-saving context.
 
 ## 项目工作约定
 
+- **世界v3按地标识别门槛候选（2026-10-18，TASKS第110节）**：目标识别旧值经用户更正为0.85，v1/v2全部显式映射0.85；v3 G2/G4必填0.7，G1/G3/G5必填0.85，clearance独立0.9不改。新世界语义摘要`3e7b4566cfabcb6d2527c5d221b4e9d0427b542adb8d6183bc13cf90d3d9885f`，状态REQUIRES_FIELD_CALIBRATION，资源前拒绝live；报告`run_parameters.target_min_confidence`按世界/摘要/地标重算，v3缺字段拒绝。14固定帧×3轮的42条观测仅为数值内存复现，另3条更远0.55仍拒绝；不是实机通过。现场保持v9＋世界v2＋dry-run，稳定性v1–v9与旧世界/提示/control/configs不改。提案见`docs/validation/T08_world_v3_confidence.md`，待独立复核与用户冻结。
+
 - **v9 已机械冻结（2026-10-18，TASKS第104节）**：依据第101节定向复核与第103节 B1 修正件复核（**B1 已关闭、无阻断项**）及用户授权，仅把 `stable-inference-v9-candidate` 的 `status` 改为 `FROZEN`；新 SHA256 `c9fb45ee3295766e62f3ceda2c4a744aab9dd45e580d36385168a59f97e700a2`（第100/101节候选摘要 `990a1d7d…ceef0e` 为历史）。加载器无需改动：v9 分支自交付起即按 v6/v8 做法把 status 限定在 `{REQUIRES_FIELD_CALIBRATION, FROZEN}` 闭集。逐框可见面积 100 ppm/`ceil`/最少1/最多128、`exclude_masked`、全局 5%/Δ2、黑帧/尺寸/绑定、4000ms/180s/40步/3attempt、预热2对、运动包络、30s 租约与急停/epoch/TTL/到期归零均不变；v8 摘要仍 `11b98adf…80cae`。冻结后门禁 `1405 passed in 620.80s`。**现场配置仍 v8+dry-run，切到 v9 是独立决定**；T08 仍 IN_PROGRESS，20 次任务与人工逐条确认未执行。记录见 `docs/validation/T08_v9_freeze.md`。
 
 - **v9 B1实现修正（2026-10-18，TASKS第102/103节）**：`control/service.py`只在180s预算枚举补入v9一行，默认30s与v6/v7/v8装配不变；真实dry-run进程与内存续租/schema12回归见`docs/validation/T08_v9_budget_fix.md`。**已由第103节定向复核：B1 已关闭、无阻断项**（探针141项0失败、四门禁1405 passed）；仍未冻结、未切配置；策略字节不变，现场仍v8/dry-run。N2预检epoch风险未判定，只列现场复验清单；旧报告接受范围不变。

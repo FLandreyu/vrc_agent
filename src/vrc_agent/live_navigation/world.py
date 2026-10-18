@@ -11,6 +11,11 @@ from pydantic import Field, model_validator
 from vrc_agent.contracts import Contract, Identifier
 
 Ratio = Annotated[float, Field(gt=0, le=1)]
+LEGACY_MIN_CONFIDENCE = {
+    "vrchat-home-live-v1": {"G1": 0.85, "G2": 0.85, "G3": 0.85, "G4": 0.85, "G5": 0.85},
+    "vrchat-home-live-v2": {"G1": 0.85, "G2": 0.85, "G3": 0.85, "G4": 0.85, "G5": 0.85},
+}
+V3_MIN_CONFIDENCE = {"G1": 0.85, "G2": 0.7, "G3": 0.85, "G4": 0.7, "G5": 0.85}
 
 
 class ArrivalRule(Contract):
@@ -36,6 +41,10 @@ class LiveLandmark(Contract):
     arrival_reference: str
     arrival_reference_sha256: Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
     recovery_zone: str
+
+    def recognition_min_confidence(self) -> float:
+        # 旧世界文件不添字段；按契约版本/地标显式解释，不是缺字段回落。
+        return LEGACY_MIN_CONFIDENCE["vrchat-home-live-v1"][self.group]
 
 
 class LiveTask(Contract):
@@ -96,10 +105,16 @@ class LiveWorld(Contract):
         ).encode("utf-8")
         return hashlib.sha256(raw).hexdigest()
 
+    def require_live(self) -> None:
+        """v1/v2既有冻结契约；新候选类型必须显式覆盖此门禁。"""
+
 
 class LiveLandmarkV2(LiveLandmark):
     # 提示作为世界契约的一部分参与摘要，不能悄悄改变 v1 的视觉描述。
     prompt_addendum: Annotated[str, Field(max_length=2000)] = ""
+
+    def recognition_min_confidence(self) -> float:
+        return LEGACY_MIN_CONFIDENCE["vrchat-home-live-v2"][self.group]
 
 
 class LiveWorldV2(LiveWorld):
@@ -115,11 +130,52 @@ class LiveWorldV2(LiveWorld):
         return self
 
 
-def load_live_world(version: Literal["v1", "v2"] = "v1") -> LiveWorld | LiveWorldV2:
-    if version not in {"v1", "v2"}:
+class LiveLandmarkV3(LiveLandmarkV2):
+    min_confidence: Annotated[float, Field(strict=True, ge=0, le=1)]
+
+    def recognition_min_confidence(self) -> float:
+        return self.min_confidence
+
+
+class LiveWorldV3(LiveWorldV2):
+    schema_version: Literal[3]
+    version: Literal["vrchat-home-live-v3"]
+    status: Literal["REQUIRES_FIELD_CALIBRATION", "FROZEN"]
+    source_world_v2_digest: Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
+    landmarks: tuple[LiveLandmarkV3, ...]
+
+    @model_validator(mode="after")
+    def confidence_only_revision(self):
+        predecessor = load_live_world("v2")
+        expected = {
+            **predecessor.model_dump(mode="json"),
+            "version": "vrchat-home-live-v3",
+            "schema_version": 3,
+            "status": self.status,
+            "source_world_v2_digest": predecessor.digest(),
+            "landmarks": [
+                {**item.model_dump(mode="json"), "min_confidence": V3_MIN_CONFIDENCE[item.group]}
+                for item in predecessor.landmarks
+            ],
+        }
+        if json.dumps(self.model_dump(mode="json"), sort_keys=True, allow_nan=False) != json.dumps(
+            expected, sort_keys=True, allow_nan=False
+        ):
+            raise ValueError("world v3 may only declare landmark confidence thresholds")
+        return self
+
+    def require_live(self) -> None:
+        if self.status != "FROZEN":
+            raise ValueError("candidate world requires field calibration and freezing before live")
+
+
+def load_live_world(
+    version: Literal["v1", "v2", "v3"] = "v1",
+) -> LiveWorld | LiveWorldV2 | LiveWorldV3:
+    if version not in {"v1", "v2", "v3"}:
         raise ValueError("unknown live world version")
     root = files("vrc_agent.skills").joinpath("worlds")
-    model = LiveWorld if version == "v1" else LiveWorldV2
+    model = {"v1": LiveWorld, "v2": LiveWorldV2, "v3": LiveWorldV3}[version]
     world = model.model_validate_json(
         root.joinpath(f"vrchat_home_live_{version}.json").read_text(encoding="utf-8")
     )
@@ -129,3 +185,31 @@ def load_live_world(version: Literal["v1", "v2"] = "v1") -> LiveWorld | LiveWorl
     if world.digest() != expected:
         raise ValueError("frozen live profile digest mismatch")
     return world
+
+
+def validate_report_confidence(report):
+    """新报告记录实际目标门槛；旧v1/v2报告无字段时按旧契约解释。"""
+    parameters = report.get("run_parameters")
+    declared = report.get("world_version")
+    required = declared == "vrchat-home-live-v3"
+    present = isinstance(parameters, dict) and "target_min_confidence" in parameters
+    if not required and not present:
+        return None  # 历史格式隔离：不凭空往旧报告添加字段。
+    versions = {
+        "vrchat-home-live-v1": "v1",
+        "vrchat-home-live-v2": "v2",
+        "vrchat-home-live-v3": "v3",
+    }
+    if declared not in versions:
+        raise ValueError("confidence threshold requires an explicit world version")
+    world = load_live_world(versions[declared])
+    if report.get("suite_digest") != world.digest():
+        raise ValueError("confidence world digest mismatch")
+    if report.get("mode") == "live" or report.get("sends_live_input") is True:
+        world.require_live()
+    if not present:
+        raise ValueError("missing world v3 target confidence threshold")
+    expected = world.landmark(world.task(report.get("task_id")).group).recognition_min_confidence()
+    if json.dumps(parameters["target_min_confidence"], allow_nan=False) != json.dumps(expected):
+        raise ValueError("target confidence threshold mismatch")
+    return expected
