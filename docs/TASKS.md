@@ -1255,3 +1255,11 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 - 采信语义（读策略文件）：`acceptance_semantics=target-path-v8`、`scene_confidence_scope=target_entity`；`target_recognition` 七谓词（唯一标签、实体置信、证据绑定、bbox 合法、帧可见、目标帧绑定、目标未被完全遮罩）；`scene_signals`：`target_recognition=record_only`、`motion=veto_if_any`、`arrival_success=veto_if_any`；`arrival_acceptance` 仍要求连续两个新观测且"有信号即记 review 且不得成功"。
 - **提请决策的关键点**：第 91 节实测 uncertainties 触发率 100%，而 v8 保留 `arrival_success=veto_if_any`，因此**v8 只能解除"走不动"，不能自动判定到达**；任务会走到 180 s / 40 步上限后以超时或步数耗尽结束，固定 20 次任务（≥16/20）仍不可能通过。这是设计取舍（安全底线），不是实现缺陷；需用户决定是否再分层"到达判据"，或改为人工确认到达，或先换模型降低不确定性。
 - 边界：本轮**不是独立复核，也不是实机验收**；T08 仍 IN_PROGRESS，20 次任务未恢复。下一步：DSH 对 v8 做 ADR-009 定向复核 → 用户决定冻结与到达判据方向。
+
+## 93. T08 到达口径变更与 v8 运动作用域缺口（2026-10-18，用户决定 + 现场会话发现）
+
+- **用户决定（2026-10-18，项目负责人明确）**：(1) **不更换模型**，继续使用 `deepseek-flash`；(2) **到达改为人工确认口径**——T08 的 20 次任务以报告中的 `arrival_geometry_met` ＋人工逐条确认到达为准，**不再要求自动 `SUCCESS`**；`arrival_review_required` 必须在报告中可见并逐条记录确认结果。
+- **现场会话发现（阻断 v8 直接可用）**：读 `live_navigation/acceptance_v8.py::audit()` 可见运动许可是 `permitted = all(recognition) and all(path[k] for k in policy["path_safety"][axis+"_requires"])`，而策略里各轴 `*_requires` **包含 `scene_no_hazards` 与 `scene_no_uncertainties`**。第 91 节实测 uncertainties 触发率 **100%**，因此 **v8 候选在当前模型下仍然一步都走不了**；它只解除了"目标识别"与场景信号的耦合，运动仍被整场信号硬否决。
+- 因此冻结当前 v8 不会带来行为变化。要让它可用，**运动许可的作用域必须改为路径证据**：目标识别全部通过 ＋ `forward_clearance` 几何（x1≤0.35、x2≥0.65、y1≤0.7、y2≥0.9、conf≥0.9）＋ 运动包络 ＋ 动作预算；hazards/uncertainties 保留**记录**并在到达标记 `arrival_review_required`，不再否决运动。
+- 约束（不得放宽）：clearance 几何、稳定性判据、遮罩/保护区零容差、预热、4000ms/180s/40 步、运动包络、30s 基础租约、急停/epoch/TTL/到期归零；不得删除或隐去 hazards/uncertainties 记录；不得用本变更让"危险场景"直接判成功。
+- 现状与后续：v8 为未冻结候选（`908af1df…`）；本轮只记录口径与缺口，未改任何代码/策略。下一步：实现方按上述作用域修订 v8 并出新的候选摘要 → DSH 定向复核 → 用户冻结 → 现场按"人工确认到达"口径跑试点与 20 次任务。
