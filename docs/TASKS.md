@@ -1194,7 +1194,6 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 - **另一问题（F-A 残留）：模型很少输出 `forward_clearance`**。5 次 `inference_source` 中仅 1 次带 `forward_clearance`（conf 0.9），其余 4 次只有 `home_raccoon`；因此 3 次动作全是 `wait`，从未尝试前进（`path_waits=0`，说明提出的是 wait 而非被降级的 motion）。
 - 边界：真实 live（用户在场、F9 授权、Ctrl+F9 续租 1 次），无位移输出；未改任何策略/阈值/租约。下一步：派实现方**定向诊断并修复验证链**（先离线复现 3 帧序列，指出具体失败门禁，再改代码；若涉及判据必须新版本），同时评估 `forward_clearance` 缺失的提示词/模型侧改进；两项修复后再现场。
 
-
 ## 87. T08 F-F 验证链离线诊断与可观测性修复（2026-10-18）
 
 - 负责人 Codex；本次离线交付完成，**T08 仍 IN_PROGRESS**。记录见 [动作验证诊断](validation/T08_action_verification_fix.md)，非 ADR-009 独立复核、非实机验收。
@@ -1206,7 +1205,6 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 - 四项门禁原始结果：`1249 passed in 219.74s (0:03:39)`；`All checks passed!`；`153 files already formatted`；`No broken requirements found.`（`.runtime/ff_{pytest,ruff,format,pip}.log`）。默认 `navigate-live --task G2-1 --config configs/navigation-live.toml --world-version v2`：`mode=plan-only`、`sends_live_input=false`，世界摘要 `b65b3dab51ef720c44b942d7ed67a975fbc52ed2bc1c65610718dc47b23d1ac0`；完整输出 `.runtime/ff_dry_run.log`。
 - 未改：v6 JSON `e46e0c2816c6f512fbd4fd5e5c60ff1ef3fc4d0560e0e8b29d3b6a6315caa513`、v7 JSON `fbebd9cbfd6d11988dd783ea83b7a4e8ef38c1b3ce236e435dcd20617cb2caf7` 与 sidecar，旧策略、世界/提示、配置选择/阈值/遮罩/预热、30秒基础租约、急停/epoch/TTL/pending_releases/到期归零。配置仍dry-run。无live/ARM/付费调用/真实输入/密钥读取；未改第82节及T13提案。GraphFlow工具不可用，未伪造context/plan/index。
 - 下一步：另派复核诊断语义等价与报告兼容；按用户授权安排固定图像评测/现场，先解释场景拒绝来源，再决定是否需要新版本。不能宣称当前已恢复自主前进或完成20次实机验收。
-
 
 ## 88. ADR-009 定向复核：v6 有界重试（甲）与 v7 逐证据稳定性候选（乙）（2026-10-18）
 
@@ -1227,7 +1225,6 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 - 推论（待用户决定，非本轮结论）：这是**采信语义与模型判断粒度不匹配**，不是代码缺陷。可选方向：(甲) 固定帧配对评测提示词/额度/温度，量化过度保守；(乙) 新版本把"目标识别"与"路径安全"分离——目标识别只要求唯一、高置信、帧绑定的目标实体，危险/不确定只拦动作而非整场拒绝；(丙) 换更强模型做场景判断。三者均不得静默放宽 `clearance` 几何门槛或删除危险信号。
 - 边界：真实 live（用户在场、F9 授权、Ctrl+F9 续租 1 次），无位移输出；未改任何策略/阈值/租约。T08 仍 IN_PROGRESS，固定 20 次任务未恢复。
 
-
 ## 90. T08 v8 目标识别与路径安全分离候选（2026-10-18）
 
 - 负责人 Codex，候选离线交付完成，待独立复核与用户冻结。**仅候选，非冻结，非实机验收**；T08仍IN_PROGRESS。实现/风险/完整文件清单见 [v8采信提案](validation/T08_v8_acceptance_proposal.md)。
@@ -1239,3 +1236,22 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 - 候选针对性 `43 passed in 12.87s`；v8+v6/F-F联合 `90 passed in 38.13s`。首轮完整门禁3失败：两项版本闭集断言已同步（定向2通过）；旧v2真实时钟STALE原样单跑1通过，不改时限；首轮证据保存在`.runtime/v8_pytest_first_full.log`。**最终四项门禁原始输出**：`1292 passed in 393.50s (0:06:33)`；`All checks passed!`；`157 files already formatted`；`No broken requirements found.`（`.runtime/v8_{pytest,ruff,format,pip}.log`）。
 - 默认dry-run仍`mode=plan-only`、`sends_live_input=false`，世界v2摘要`b65b3dab…`，完整`.runtime/v8_dry_run.log`。保护文件逐字节自查`protected_changes []`：v1–v7策略/sidecar、世界/提示/现场配置均未改；配置保持v6+dry-run。5%/Δ2/遮罩/保护区零容差/2对预热、4000ms/180s/40步、运动包络、30秒基础租约、急停/epoch/TTL/pending_releases/到期归零不变。无live/ARM/付费模型/真实输入/密钥读取。
 - 后续：独立复核→用户决定冻结与另行授权现场复验；候选不恢复20任务批次。GraphFlow工具不可用，context/plan/index未执行，不伪造结果；交付保留本轮之前已有的TASKS编辑。
+
+## 91. T08 固定帧 A/B 提示词评测（2026-10-18，现场会话）
+
+- 负责人 DSH / Flash（现场会话自建工具，只产报告，不改产品代码/提示词/策略）。目的：量化"模型过度保守"中提示词可解释的比例。用户授权保留固定私有帧；帧在 `.runtime/private/frames/`（21 张，`.gitignore` 已覆盖，不入 git），报告 `.runtime/verify/t08_prompt_ab_20261018_140555.json`。
+- 工具：`.runtime/tmp/t08_frame_capture.py`（PNG＋JPEG q85＋摘要）、`.runtime/tmp/t08_prompt_ab.py`（复用产品 provider 与 `calibrated_prompt`，硬预算闸门）。
+- 样本：3 类各 7 张（`open` 开阔地板、`obstacle` 正面被大障碍堵住、`occluded` 世界边缘＋镜墙＋avatar 在画面）。条件：A=现行 `runtime-clearance-v1`；B=“…只报挡住正前方通道或使目标不可靠的可见障碍，不把 HUD/镜面反射/远处装饰当危险”。固定模型 deepseek-flash、thinking 关闭、temperature 0、1024 tokens、JPEG q85；每图每条件 3 次，共 **126 次调用，花费 $0.112098**（上限 $0.25）。
+- **结果**：A 目标召回 31.7%、clearance 提及 28.6%、几何合格 28.6%、**场景可采信 0%**、hazards 52.4%、uncertainties **100%**；B 目标召回 33.3%、clearance 33.3%、几何 33.3%、**可采信 0%**、hazards **0%**、uncertainties **100%**。三类分项 `acceptable_*` 两条件均为 0。
+- **结论**：(1) 提示词无法消除过度保守——uncertainties 两条件都是 100%，可采信率都是 0%，连"开阔地板"类也过不了；(2) 候选提示**危险**——hazards 从 52.4% 降到 0/63，连"正面贴墙"的真实障碍也被吞掉，属危险场景误放行，必须否决；(3) 因此提示词路线关闭，换模型不必然有效（不确定性是结构性输出），v8 语义分离是正确方向。
+- 边界：帧为私有场景，报告不含图像/正文，只含计数与几何判据结果；本次未启动 live、未 ARM；工具与帧均不入 git。**这是现场度量，不是独立复核**；T08 仍 IN_PROGRESS。
+
+## 92. T08 v8 候选交付现场冒烟（2026-10-18，实施者复核，非实机）
+
+- 负责人 DSH / Flash（只读核验与门禁，不改产品代码）。核验 v8 候选 `7f0b0dd`；不启动 live、不 ARM、不调付费模型、不读密钥。
+- 四项门禁（现场复跑）：`-m pytest -q` 首次 **2 failed / 1290 passed**（`test_v3_spawn_report`、`test_v4_spawn_report`，均为 `STALE_OBSERVATION`），单例复跑 **2 passed in 22.75s**，全量重跑 → **1292 passed in 437.48s (0:07:17)**；`ruff check` All checks passed；`ruff format --check` **157 files already formatted**；`pip check` No broken requirements；dry-run 退出码 0。
+- **门禁稳定性观察**：两个 v3/v4 spawn 用例在机器负载高时会把 dry-run 观测判成 `STALE_OBSERVATION`（默认 1500 ms 新鲜度＋真实子进程调度），单独复跑即通过。属既有偶发，不是 v8 回归；后续批量门禁建议留意这两例，不要只跑一次就下结论。
+- 不变项：v8 摘要 `908af1df0eb214af1e26312d1eb308a1094feb96f37a478136894364e7bfc0bc` 与 sidecar 一致；`status=REQUIRES_FIELD_CALIBRATION`、`version=local-rgb-stability-v8-candidate`；v6 `e46e0c28…`、v7 `fbebd9cb…` 字节未变；现场配置仍 `mode=dry-run` + `stable-inference-v6`。
+- 采信语义（读策略文件）：`acceptance_semantics=target-path-v8`、`scene_confidence_scope=target_entity`；`target_recognition` 七谓词（唯一标签、实体置信、证据绑定、bbox 合法、帧可见、目标帧绑定、目标未被完全遮罩）；`scene_signals`：`target_recognition=record_only`、`motion=veto_if_any`、`arrival_success=veto_if_any`；`arrival_acceptance` 仍要求连续两个新观测且"有信号即记 review 且不得成功"。
+- **提请决策的关键点**：第 91 节实测 uncertainties 触发率 100%，而 v8 保留 `arrival_success=veto_if_any`，因此**v8 只能解除"走不动"，不能自动判定到达**；任务会走到 180 s / 40 步上限后以超时或步数耗尽结束，固定 20 次任务（≥16/20）仍不可能通过。这是设计取舍（安全底线），不是实现缺陷；需用户决定是否再分层"到达判据"，或改为人工确认到达，或先换模型降低不确定性。
+- 边界：本轮**不是独立复核，也不是实机验收**；T08 仍 IN_PROGRESS，20 次任务未恢复。下一步：DSH 对 v8 做 ADR-009 定向复核 → 用户决定冻结与到达判据方向。
