@@ -1388,3 +1388,23 @@ No broken requirements found.
 - 新风险：框外 ≤5% 真实局部变化（1.47%）、小可见面积 1 px 相对容忍度偏高（V<10,000 时 ≥100 ppm）、128 px 封顶使大框有效容差低于 100 ppm（V=2,848,256→44.9 ppm）。三条均不单独阻断，须全部写入现场复验清单（与 21/44 归属、G4-1 单像素物理判读同列）。
 - 非阻断观察 N1–N8 见复核记录第 5 节：N1 ceil 抬升（57,525×6＝104.3 ppm）；**N2 预检重绑未显式比较 epoch**（继承 v7/v8 路径）；N3/N4 文案沿用 v6/v8；N5 旧工件无 `changed_runs`/BGRA 故不可再深挖；N6 旧版本 CRLF 口径；N7 探针在 `.runtime/`；N8 预检不构成动作证据。
 - 边界与后续：**v9 仍 `REQUIRES_FIELD_CALIBRATION`、仍拒绝 live，现场仍 v8/dry-run**；本轮不是冻结，也不是实机验收。下一步先修 B1 并补“v9→180s 预算/报告复验”回归、再由另一执行者定向复核，之后才是用户选版/冻结、现场复验（含 G1/G3/G5 遮罩交互与真实移动对照）与 20 次任务人工确认；T08 保持 `IN_PROGRESS`。
+
+## 102. T08 v9 冻结阻断 B1 装配预算修正（2026-10-18）
+
+- 状态：B1实现修正已交付，待另一执行者定向复核；T08保持IN_PROGRESS。负责人：Codex。依据第101节及用户定向任务书，仅把v9加入控制进程180s预算枚举；不改判据，不冻结、不切现场配置。验证记录与N2现场清单见`docs/validation/T08_v9_budget_fix.md`。
+- N2默认仅进入现场复验清单：本轮不修改预检epoch绑定或旧报告接受范围。GraphFlow工具在本会话不可调用，按项目回退约定直接核对源码，未伪造context/plan/index。
+- 生产修改：`src/vrc_agent/control/service.py`的预算设计集合仅新增`"stable-inference-v9"`一行，继续从原`load_policy`读取180s；`task_timeout_s=30.0`兜底及v6/v7/v8原分支不变，未引入未知设计前缀匹配。`control/`原始字节差异恰好该枚举行（保留原CRLF），没有其它控制改动。
+- 回归：新增`tests/integration/test_v9_control_budget.py`共11项；真实dry-run的`ControllerProcess`初始/状态预算确认v9为180000、基础30000、扩展参数与配置一致（含自定义17000×3），启动DISARMED、无输入，IPC仍拒绝extend/renew；v6/v7/v8逐一为180000，legacy/v5仍30000，未知设计拒绝。假时钟core使用真实worker返回预算，首次本地续租grant=30000；未续租仍30s到期、一次续租60s到期，正在执行的动作被取消并各轴归零，不能续租复活或直接重新ARM；动作TTL/截止时间、epoch/lease_id不变。
+- 报告：内存v9闭环使用真实worker预算与本地续租事件，先推进31s再执行，schema12报告的`control_budget.task_timeout_ms=180000`、base=30000、总授予60000/一次扩展，elapsed>30000；`validate_leases`、`validate_stability_report`与JSON往返均通过。把同一报告预算改回30000，两校验器均拒绝，未改校验器或篡改声明掩盖B1。工件`.runtime/verify/t08_v9_b1_report.json`。定向原始输出：`11 passed in 20.02s`（`.runtime/verify/t08_v9_b1_targeted.log`）。
+- 四项门禁均exit 0（原始日志`.runtime/verify/t08_v9_b1_{pytest,ruff_check,ruff_format,pip_check}.log`）：
+
+```text
+1405 passed in 642.36s (0:10:42)
+All checks passed!
+161 files already formatted
+No broken requirements found.
+```
+
+- 默认只读计划：`.venv/Scripts/python.exe -m vrc_agent navigate-live --task G2-1 --config configs/navigation-live.toml --world-version v2`，exit 0，`"mode": "plan-only"`、`"sends_live_input": false`、世界v2摘要仍`b65b3dab…d1ac0`；完整输出`.runtime/verify/t08_v9_b1_dry_run.log`。这不是live/实机验收。
+- 不变项自查：114份生产源码/configs基线中仅service上述枚举行改变，其余113份逐字节一致（含v1–v9 JSON/sidecar、世界/提示/configs及N2/leases校验器）。v9摘要仍`990a1d7de902318f4ed04715adaa7bfd71c9c806c30fb90e82ad37a142ceef0e`、REQUIRES_FIELD_CALIBRATION；现场仍v8/dry-run、30s基础租约。clearance、七谓词、到达、4000ms/180s/40步/3attempt、预热2对、包络、急停/epoch/TTL/到期归零未改；工件`.runtime/verify/t08_v9_b1_invariants.json`。
+- N2清单：保存预检/来源的session、epoch、观测ID、attempt与时间；人工ARM/RESET或epoch变化边界核对有无旧预检复用，另列不一致见证给复核者。当前schema12/旧报告接受范围不变；如后续另案补强，须先说明历史报告隔离/兼容影响。本轮未启动live、未真实ARM/热键/输入、未调付费模型、未读密钥；不自行宣布可冻结。下一步另一执行者复核B1修正件→用户决定→现场复验与20次人工确认。

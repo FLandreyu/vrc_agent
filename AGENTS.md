@@ -32,6 +32,8 @@ context. Treat GraphFlow output as structured, token-saving context.
 
 ## 项目工作约定
 
+- **v9 B1实现修正（2026-10-18，TASKS第102节）**：`control/service.py`只在180s预算枚举补入v9一行，默认30s与v6/v7/v8装配不变；真实dry-run进程与内存续租/schema12回归见`docs/validation/T08_v9_budget_fix.md`。这是实现方修正，须另派定向复核，未冻结、未切配置；策略字节不变，现场仍v8/dry-run。N2预检epoch风险本轮不改判据，只列现场复验清单；旧报告接受范围不变。
+
 - **v9 复核有阻断项 B1（2026-10-18，TASKS第101节）**：`ab37394`（摘要`990a1d7d…ceef0e`）的判据/校验/隔离/现场 11-1-2 对照主体**未能证伪**，自建探针 80 项 0 失败，四项门禁 `1394 passed in 625.83s`＋ruff/format/pip 全绿；**但 `src/vrc_agent/control/service.py:166-176` 的 `task_timeout_s` 枚举只含 v6/v7/v8，缺 v9**，冻结切现场会静默回落 30s 预算：F9 续租额度 0、30s 到期归零、`control_budget.task_timeout_ms=30,000` 与声明 180s 冲突致 schema12 报告被 `leases.py:33` 拒绝（探针已离线复现）。故 **v9 不能冻结、不能切现场，B1 为冻结前必修**；v9 仍候选且拒绝 live，现场仍 v8/dry-run，T08 仍 IN_PROGRESS。记录见[复核记录](docs/validation/T08_stability_v9_review.md)。
 - **v9逐保护区ppm候选（2026-10-18，TASKS第100节）**：独立schema12，各可见保护框按100 ppm、下限1px/上限128px独立预算，不借用并集面积；新摘要`990a1d7de902318f4ed04715adaa7bfd71c9c806c30fb90e82ad37a142ceef0e`。沿用冻结v8采信与exclude_masked语义、全局5%/Δ2及全部控制边界；候选资源前拒绝live，现场仍v8/dry-run。用户已更正G4-1的41,811全局/1保护像素样本应从拒绝变通过，框外≤5%容忍度为旧有盲区；原报告只有并集计数，不能伪称多框样本已逐框重放。提案见`docs/validation/T08_stability_v9.md`；已由第101节定向复核：主体未能证伪但有阻断项 B1（`control/service.py` 缺 v9 的 180s 预算枚举），冻结前必修；仍候选、非实机验收。
 
