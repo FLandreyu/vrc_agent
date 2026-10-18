@@ -1218,3 +1218,11 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 - 非阻断观察 N1–N10 见记录第 6 节；使用报告/批次汇总时须注意：**N3** `STALE_OBSERVATION` 在遥测里归 `control` 家族且不在 `LIVE_NAVIGATION_FAILURES` 15 码闭集内（v2 预热已可产生，甲新增一条同码路径），按 `live_navigation` 家族计数会漏记、但不会出现 unknown-code 警告；**N1** `observation` 事件的 attempt 未与 proof 交叉核对（改 2→1 仍通过，动作证据链不受影响）；**N2** 预算与全部 attempt 元数据一并删除后与历史 schema9 不可区分；**N5** pilot5 的 F-F/F-A 不由甲引入，第 87 节已更正归因，且离线合成闭环 4 动作 24 谓词全 true、F-F 不可复现；**N8** `changed_runs` 最坏体积/校验耗时未测。
 - 现场口径：**甲无须因本次复核停用**（未发现放大预算/跨 attempt 复用/把异常当抖动/绕过 ARM 的缺陷）；但**固定 20 次任务不应在第 87 节修复经独立复核与现场复验前恢复**（F-F 使现场无法产生有效位移证据，属产品级缺陷，非对甲的退回）。**乙维持候选**：不得 live、不得据本复核冻结、不得当作 16/20 或实机验收依据。
 - 未评估：v6 判据现场通过率、v7 的 1000 ppm 是否合适、F-F/F-A 根因、第 87 节修复的语义等价性（后者另有交接）。T08 仍 IN_PROGRESS。
+
+## 89. T08 验证诊断现场复验（2026-10-18，现场会话）
+
+- 负责人 DSH / Flash（现场执行，未改产品代码）。目的：用第 87 节新增的逐谓词诊断确认 live 中真实失败门禁；结果 `outcome=TARGET_UNOBSERVED`、3 个动作（全 `wait`）、4 次模型调用 $0.003542、1 次续租、控制用时 31.6 s、总时长 45.2 s；报告 `.runtime/live/G2-1-pilot6/navigation-live/`。
+- **现场逐谓词（首次可见）**：动作1 `failed=['scene_no_uncertainties']`；动作2 `['scene_no_hazards','scene_no_uncertainties']`；动作3 `['scene_confidence_sufficient','scene_no_hazards','scene_no_uncertainties']`。与第 87 节离线复现完全一致——**`verify()` 的 18 条基础门禁在现场全部通过**，失败集中在 `target()` 的三个场景采信门禁。
+- 含义：坐标、时序、绑定、帧引用、epoch/session 都没有问题；问题在"**场景整体被模型判为有危险/不确定/置信度不足**"，于是目标被视为不可采信，连续 3 次即 `TARGET_UNOBSERVED`。pilot5（5/5）与 pilot6（3/3）合计 8 次推理全部带 hazards 或 uncertainties，属系统性行为而非偶发。
+- 推论（待用户决定，非本轮结论）：这是**采信语义与模型判断粒度不匹配**，不是代码缺陷。可选方向：(甲) 固定帧配对评测提示词/额度/温度，量化过度保守；(乙) 新版本把"目标识别"与"路径安全"分离——目标识别只要求唯一、高置信、帧绑定的目标实体，危险/不确定只拦动作而非整场拒绝；(丙) 换更强模型做场景判断。三者均不得静默放宽 `clearance` 几何门槛或删除危险信号。
+- 边界：真实 live（用户在场、F9 授权、Ctrl+F9 续租 1 次），无位移输出；未改任何策略/阈值/租约。T08 仍 IN_PROGRESS，固定 20 次任务未恢复。
