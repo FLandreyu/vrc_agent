@@ -12,7 +12,7 @@ from vrc_agent.providers import factory
 
 def test_actual_live_config_disables_thinking_through_provider_factory(monkeypatch):
     config = load_config(Path(__file__).parents[2] / "configs/navigation-live.toml")
-    assert config.mode == "dry-run" and config.navigation_design == "stable-inference-v8"
+    assert config.mode == "dry-run" and config.navigation_design == "stable-inference-v9"
     assert config.perception.disable_thinking and config.perception.max_output_tokens == 1024
     captured = []
     monkeypatch.setattr(factory, "OpenAICompatibleProvider", lambda **kw: captured.append(kw))

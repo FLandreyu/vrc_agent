@@ -1430,3 +1430,12 @@ No broken requirements found.
 - 测试更新两个文件：`tests/unit/test_stability_v9.py` 的 `DIGEST` 改为冻结后摘要、v9 期望状态改`FROZEN`、状态闭集循环扩到 v1–v9（`FROZEN`集合`{v5,v6,v8,v9}`）；`tests/integration/test_stability_v9_runtime.py` 把“候选拒绝 live”改为“冻结后仍需三项同意＋未冻结策略仍在资源前与运行时层拒绝 live＋v9 运行时强制”，报告篡改用例`live`/`sends`改为`run_parameters`（冻结后声明 live 本身合法），并新增“未冻结策略的报告不得声明 live”。
 - 门禁（冻结后，日志`.runtime/tmp/v9_freeze_pytest.log`、`.runtime/tmp/v9_freeze_dry.log`）：`1405 passed in 620.80s (0:10:20)`；`All checks passed!`；`161 files already formatted`；`No broken requirements found.`；`navigate-live --task G2-1 --world-version v2` 默认只读计划 exit 0。定向回归 `96 passed in 61.91s`。
 - 边界与后续：冻结不等于实机验收；`configs/navigation-live.toml` 仍 v8+dry-run，切到 v9 是独立的现场配置决定；20 次任务与人工确认、G1/G3/G5 遮罩交互、第101节 N2 预检 epoch 均未执行。下一步：用户决定是否切现场配置到 v9 → 人在场试点，重点看是否出现真实 motion、稳定性拒绝是否下降、目标置信度 0.9 是否仍卡住、以及“有信号仍运动”动作的现场判读。
+## 105. T08 现场配置切换到 v9（2026-10-18）
+
+- 负责人现场会话；用户明确指示“切”。依据第104节机械冻结的新摘要`c9fb45ee3295766e62f3ceda2c4a744aab9dd45e580d36385168a59f97e700a2`（`FROZEN`）。本轮只改装配选择，不改判据、容差、阈值、包络、时限或控制安全。
+- `configs/navigation-live.toml`：`navigation_design`由`stable-inference-v8`改为`stable-inference-v9`；`mode`仍`dry-run`；`navigation_motion_profile="field"`、`lease_ms=30000`、`lease_extension_ms=30000`、`lease_extension_max=5`、`observation_max_age_ms=4000`、`image_format="jpeg"`/`jpeg_quality=85`、`disable_thinking=true`、`max_output_tokens=1024`均未改。
+- 三处“现场配置使用哪个 design”的断言同步改为 v9（`tests/unit/test_jpeg_images.py`、`tests/unit/test_navigation_v6_parameters.py`、`tests/unit/test_t08_v5_proposal_config.py`），其余断言未改，未删除或放宽任何门禁。
+- 验证：`load_config` 读出 `stable-inference-v9 / dry-run / field / lease_ms=30000 / extension_max=5`；`load_policy("v9")` 状态 `FROZEN`、摘要 `c9fb45ee…e700a2`；`navigate-live --task G2-1 --config configs/navigation-live.toml --world-version v2` 默认只读计划 `exit 0`（`.runtime/tmp/v9_switch_plan.log`）。
+- 门禁（日志`.runtime/tmp/v9_switch_pytest.log`）：`1405 passed in 450.39s (0:07:30)`；`All checks passed!`；`161 files already formatted`；`No broken requirements found.`。
+- 边界：切换不等于实机验收。live 仍需显式`--mode live`、标定/付费/图像三项同意、真实`openai_compat`供应商与正预算、精确且不被遮挡的窗口采集、本机 F9 ARM；IPC/JSON 的 ARM/续租仍被拒绝，30s 基础租约与到期归零不变。第103节 B1 已关闭后，v9 的控制器任务预算为 180s（`control/service.py` 枚举已含 v9），现场是首次真实用上这一接线。
+- 下一步：人在场的 v9 首次试点（建议先 G2-1 / G4-1 这类几何干净任务）。重点记录：稳定性拒绝是否从 v8 的 8/14 降到接近 0、是否出现第一批真实 motion、目标实体置信度 0.9 是否仍卡住（G2-2 曾给 0.72/0.55）、“有信号仍运动”动作的现场判读（第95节 N4）、以及 180s 预算与 Ctrl+F9 续租的实际效果。20 次任务与人工逐条确认未开始。
