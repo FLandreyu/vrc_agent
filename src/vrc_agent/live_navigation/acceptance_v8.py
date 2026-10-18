@@ -36,6 +36,8 @@ DECLARATION = {
     },
     "path_safety": {
         "predicates": [
+            "has_hazards",
+            "has_uncertainties",
             "scene_no_hazards",
             "scene_no_uncertainties",
             "forward_clearance",
@@ -51,22 +53,16 @@ DECLARATION = {
             "min_confidence": 0.9,
         },
         "forward_requires": [
-            "scene_no_hazards",
-            "scene_no_uncertainties",
             "forward_clearance",
             "motion_envelope",
             "max_actions",
         ],
         "strafe_requires": [
-            "scene_no_hazards",
-            "scene_no_uncertainties",
             "recovery_clearance",
             "motion_envelope",
             "max_actions",
         ],
         "yaw_requires": [
-            "scene_no_hazards",
-            "scene_no_uncertainties",
             "motion_envelope",
             "max_actions",
         ],
@@ -76,15 +72,19 @@ DECLARATION = {
     },
     "scene_signals": {
         "target_recognition": "record_only",
-        "motion": "veto_if_any",
-        "arrival_success": "veto_if_any",
+        "motion": "record_only",
+        "arrival_success": "record_review_required",
         "report_scope": "whole_scene_presence_no_text",
     },
+    "scene_signal_motion_effect": "record_only",
+    "scene_signal_arrival_effect": "record_review_required",
     "arrival_acceptance": {
         "consecutive_new_observations": 2,
         "continuity": ["session_id", "environment_epoch", "track_id"],
         "geometry": "unchanged_selected_world",
-        "hazards_or_uncertainties": "record_review_required_and_no_success",
+        "hazards_or_uncertainties": "record_review_required_and_no_automatic_success",
+        "field_acceptance": "arrival_geometry_met_and_manual_confirmation",
+        "automatic_success": "clean_scene_two_new_observations_only",
     },
 }
 
@@ -215,15 +215,18 @@ class AcceptanceSkillV8(CalibratedSkill):
         )
 
     def arrival_permitted(self, scene):
+        # 仅用于自动 SUCCESS；不得再被运动/恢复许可复用。
         return not scene.hazards and not scene.uncertainties
 
     def recovery_allowed(self, scene):
-        return self.arrival_permitted(scene) and self.clearance(scene, "recovery_clearance")
+        return self.clearance(scene, "recovery_clearance")
 
     def audit(self, scene, proposal, count):
         recognition = self.recognition_predicates(scene)
         entity = self.select_target(scene)
         path = {
+            "has_hazards": bool(scene.hazards),
+            "has_uncertainties": bool(scene.uncertainties),
             "scene_no_hazards": not scene.hazards,
             "scene_no_uncertainties": not scene.uncertainties,
             "forward_clearance": self.clearance(scene, "forward_clearance"),
@@ -254,8 +257,10 @@ class AcceptanceSkillV8(CalibratedSkill):
                 "has_hazards": bool(scene.hazards),
                 "has_uncertainties": bool(scene.uncertainties),
                 "target_effect": "record_only",
-                "motion_effect": "veto_if_any",
-                "arrival_effect": "veto_if_any",
+                "motion_effect": self.policy["scene_signal_motion_effect"],
+                "arrival_effect": self.policy["scene_signal_arrival_effect"],
+                "field_acceptance": self.policy["arrival_acceptance"]["field_acceptance"],
+                "automatic_success_allowed": self.arrival_permitted(scene),
             },
             "arrival_geometry_met": geometry,
             "arrival_review_required": geometry and not self.arrival_permitted(scene),
@@ -274,7 +279,7 @@ class AcceptanceSkillV8(CalibratedSkill):
             )
         audit = self.audit(scene, proposal, self.decision_count)
         dispatched = proposal
-        if not audit["proposal_permitted"] or not self.arrival_permitted(scene):
+        if not audit["proposal_permitted"]:
             self.path_waits += 1
             if self.path_waits >= self.policy["path_safety"]["path_wait_limit"]:
                 self.halt_reason = "PATH_UNSAFE"

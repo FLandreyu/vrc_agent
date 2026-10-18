@@ -94,15 +94,15 @@ def test_v8_exact_v6_base_and_candidate_digest():
         assert policy["status"] == ("FROZEN" if version in (5, 6) else "REQUIRES_FIELD_CALIBRATION")
 
 
-def test_dirty_scene_recognized_but_motion_blocked_and_no_unknown_zero_substitution():
+def test_dirty_scene_recognized_and_motion_uses_clearance_without_unknown_zero_substitution():
     skill, observed = inputs(dirty=True)
     _, scene = observed(1)
     assert scene.confidence == 0.9 and scene.source_confidence == 0.6
     assert all(skill.recognition_predicates(scene).values())
     assert skill.select_target(scene) is not None and target(scene, skill.goal) is None
     for _ in range(3):
-        assert asyncio.run(skill.decide(scene, ())).kind == "wait"
-    assert skill.halt_reason == "PATH_UNSAFE"
+        assert asyncio.run(skill.decide(scene, ())).kind == "motion"
+    assert skill.halt_reason is None
     missing = scene.model_copy(update={"entities": scene.entities[1:]})
     # 构造新作用域时，未知目标为 None，不能记成完整0或沿用无关实体最小值。
     scoped = scope_scene(
@@ -116,6 +116,52 @@ def test_dirty_scene_recognized_but_motion_blocked_and_no_unknown_zero_substitut
         "home_raccoon",
     )
     assert scoped.confidence is None and skill.select_target(scoped) is None
+
+
+@pytest.mark.parametrize("signals", [(True, False), (False, True), (True, True)])
+@pytest.mark.parametrize("axis", ["forward", "strafe", "yaw"])
+def test_signals_are_record_only_for_all_axes(signals, axis):
+    skill, observed = inputs()
+    _, scene = observed(1)
+    recovery = scene.entities[1].model_copy(
+        update={"label": "recovery_clearance", "track_id": "recovery"}
+    )
+    scene = scene.model_copy(
+        update={
+            "hazards": ("hazard",) if signals[0] else (),
+            "uncertainties": ("uncertain",) if signals[1] else (),
+            "entities": scene.entities + (recovery,),
+        }
+    )
+    proposal = ActionProposal(
+        kind="motion",
+        args={
+            axis: getattr(skill.motion_envelope, axis),
+            "duration_ms": getattr(skill.motion_envelope, axis + "_ms"),
+        },
+    )
+    audit = skill.audit(scene, proposal, 1)
+    assert audit["proposal_permitted"]
+    assert audit["path_safety"]["has_hazards"] is signals[0]
+    assert audit["path_safety"]["has_uncertainties"] is signals[1]
+    assert audit["scope"]["motion_effect"] == "record_only"
+    assert not skill.arrival_permitted(scene)
+    assert skill.recovery_allowed(scene)
+    if axis == "strafe":
+        skill._recovery.append("recover_strafe")
+    elif axis == "yaw":
+        target_entity = scene.entities[0].model_copy(update={"bbox": (0.6, 0.47, 0.9, 0.65)})
+        scene = scene.model_copy(update={"entities": (target_entity,) + scene.entities[1:]})
+    assert asyncio.run(skill.decide(scene, ())).kind == "motion"
+
+
+def test_signals_without_clearance_still_wait_then_pause():
+    skill, observed = inputs(dirty=True)
+    _, scene = observed(1)
+    scene = scene.model_copy(update={"entities": (scene.entities[0],)})
+    for _ in range(3):
+        assert asyncio.run(skill.decide(scene, ())).kind == "wait"
+    assert skill.halt_reason == "PATH_UNSAFE"
 
 
 @pytest.mark.parametrize(

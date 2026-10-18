@@ -279,7 +279,12 @@ class SupervisedNavigation:
                         ]
                     ):
                         raise RuntimeHalt("UNSAFE_SCENE")
-                    if target(scene, self.skill.goal) is None:
+                    recognized = (
+                        self.skill.select_target(scene)
+                        if getattr(self, "POLICY_VERSION", None) == "v8"
+                        else target(scene, self.skill.goal)
+                    )
+                    if recognized is None:
                         raise RuntimeHalt("UNSAFE_SCENE")
                     if not self.motion_envelope.accepts(args):
                         raise RuntimeHalt("INVALID_ARGS")

@@ -1263,3 +1263,15 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 - 因此冻结当前 v8 不会带来行为变化。要让它可用，**运动许可的作用域必须改为路径证据**：目标识别全部通过 ＋ `forward_clearance` 几何（x1≤0.35、x2≥0.65、y1≤0.7、y2≥0.9、conf≥0.9）＋ 运动包络 ＋ 动作预算；hazards/uncertainties 保留**记录**并在到达标记 `arrival_review_required`，不再否决运动。
 - 约束（不得放宽）：clearance 几何、稳定性判据、遮罩/保护区零容差、预热、4000ms/180s/40 步、运动包络、30s 基础租约、急停/epoch/TTL/到期归零；不得删除或隐去 hazards/uncertainties 记录；不得用本变更让"危险场景"直接判成功。
 - 现状与后续：v8 为未冻结候选（`908af1df…`）；本轮只记录口径与缺口，未改任何代码/策略。下一步：实现方按上述作用域修订 v8 并出新的候选摘要 → DSH 定向复核 → 用户冻结 → 现场按"人工确认到达"口径跑试点与 20 次任务。
+
+
+## 94. T08 v8 未冻结候选运动作用域修订（2026-10-18）
+
+- 负责人Codex，候选修订离线交付完成、待独立复核与用户冻结；依据第91/92/93节及用户授权，不换模型；T08仍IN_PROGRESS。记录见 [v8提案第8节](validation/T08_v8_acceptance_proposal.md)。不是冻结、不是独立复核、不是实机验收。
+- 旧摘要`908af1df0eb214af1e26312d1eb308a1094feb96f37a478136894364e7bfc0bc`→新摘要`98bf0aa7986f8349c678f6196e307239ad02df5945004c23266e9b740082e2ef`，version/status仍`local-rgb-stability-v8-candidate`/`REQUIRES_FIELD_CALIBRATION`。同一未冻结候选按新摘要修订，像素判据不变，不升v9；许可语义变化必须重新复核，旧摘要报告不能套用新规则。
+- 运动许可改为目标七谓词＋按轴路径证据/包络/预算；forward需forward_clearance、strafe需recovery_clearance、yaw保持原包络。各轴requires不再包含整场信号；显式scene_signal_motion_effect=record_only、scene_signal_arrival_effect=record_review_required。保留并增加path内has_hazards/has_uncertainties记录，旧scene_no_*也保留供审计，不参与运动许可。
+- 同步删除decide额外到达许可否决、recovery_allowed的整场否决以及runtime旧target调用的v8整场否决残留；v8提交前独立audit和原控制门禁均保留，旧版本行为不动。arrival_permitted仅控制自动SUCCESS：有信号时几何可真、review必须真、自动成功许可false；干净场景原两帧自动确认仍保留。
+- 按第93节，20次任务改为有效arrival_geometry_met＋人工逐条确认，机器outcome/verification原样保留，单独记录确认人与证据，不要求自动SUCCESS；不新增确认UI/IPC，不允许模型自称人工确认。接管/超时/卡住记录与失败分类不得隐去，不将人工确认视为延长租约或改写机器结局的能力。
+- 本轮59项针对性回归通过（`59 passed in 29.51s`）：信号组合×三轴、恢复实际分支、有/无clearance内存闭环、有信号不得假成功、review伪造/作用域字段缺失与旧摘要拒绝。完整四项门禁原始输出：`1308 passed in 398.27s (0:06:38)`；`All checks passed!`；`157 files already formatted`；`No broken requirements found.`（`.runtime/v8r_{pytest,ruff,format,pip}.log`）。本轮全量一次通过，未出现v3/v4 spawn偶发STALE，未改时限/门槛。
+- 未改自查：v1–v7 JSON/sidecar、世界/提示/现场配置及control/core.py/service.py逐字节一致（`.runtime/v8r_protected_before.json`，`protected_changes []`）；七谓词识别函数与clearance函数源码完全一致。v8原5%/Δ2/遮罩/保护区零容差、2对预热、4000ms/180s/40步/3attempt、运动包络不变；30秒基础租约、急停/epoch/TTL/pending_releases/到期归零不变。默认dry-run输出plan-only/sends_live_input=false，配置仍v6。无live/ARM/付费模型/真实输入/密钥读取，GraphFlow工具不可用未伪造结果。
+- 新风险：模型误报clearance时，整场危险信号不再拦运动；人工到达确认不能消除运动风险。仍待独立复核、新摘要选版/用户冻结及人在场现场试点，本轮不恢复20任务批次。

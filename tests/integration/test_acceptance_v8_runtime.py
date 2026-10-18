@@ -15,7 +15,7 @@ from vrc_agent.live_navigation.stability_report import validate_stability_report
 from vrc_agent.live_navigation.stable_runtime import StableNavigationV8, stable_navigation_class
 
 
-def assemble_v8(dirty=False, distractor=False):
+def assemble_v8(dirty=False, distractor=False, no_clearance=False):
     old, client, calls = assembly()
     client.config = AppConfig(
         navigation_design="stable-inference-v8",
@@ -30,6 +30,11 @@ def assemble_v8(dirty=False, distractor=False):
         payload = copy.deepcopy(response.payload)
         if dirty:
             payload.update(hazards=["synthetic obstacle"], uncertainties=["synthetic unknown"])
+        if no_clearance:
+            payload["entities"] = [
+                e for e in payload["entities"] if e["label"] != "forward_clearance"
+            ]
+            payload["entities"][0]["bbox"] = [0.4, 0.4, 0.6, 0.6]
         if distractor:
             payload["entities"].append(
                 {
@@ -102,15 +107,42 @@ def test_scope_separates_irrelevant_minimum_and_success_needs_clean_evidence(rep
     assert report_v8["run_parameters"]["max_actions"] == 40
 
 
-def test_hazards_never_become_motion_or_success():
+def test_signals_allow_evidenced_motion_but_never_fake_success():
     runtime, client, _ = assemble_v8(dirty=True, distractor=True)
     report = asyncio.run(runtime.run())
-    assert report["outcome"] == "PATH_UNSAFE"
-    assert all(a["kind"] == "wait" for a in report["actions"])
+    assert report["outcome"] == "EXPIRED_LEASE"
+    assert any(a["kind"] == "motion" for a in report["actions"])
     assert all(r["verification"] != "SUCCESS" for r in report["results"])
     feedback = [e for e in report["events"] if e["event"] == "navigation_feedback"]
     assert feedback and all(e["evidence"]["valid_target"] for e in feedback)
     assert all(e["evidence"]["acceptance"]["scope"]["has_hazards"] for e in feedback)
+    assert client.core.active is None
+    decisions = [e["audit"] for e in report["events"] if e["event"] == "acceptance_decision"]
+    assert any(a["proposal_permitted"] and a["path_safety"]["has_hazards"] for a in decisions)
+    assert any(
+        a["arrival_geometry_met"]
+        and a["arrival_review_required"]
+        and not a["scope"]["automatic_success_allowed"]
+        for a in decisions
+    )
+    validate_stability_report(report)
+    bad = copy.deepcopy(report)
+    row = next(e for e in bad["events"] if e["event"] == "navigation_feedback")
+    row["evidence"]["acceptance"]["arrival_review_required"] = False
+    with pytest.raises(ValueError):
+        validate_stability_report(bad)
+    bad = copy.deepcopy(report)
+    bad["results"][0]["verification"] = "SUCCESS"
+    with pytest.raises(ValueError):
+        validate_stability_report(bad)
+
+
+def test_signals_without_clearance_still_pause():
+    runtime, client, _ = assemble_v8(dirty=True, no_clearance=True)
+    report = asyncio.run(runtime.run())
+    assert report["outcome"] == "PATH_UNSAFE"
+    assert all(a["kind"] == "wait" for a in report["actions"])
+    assert all(r["verification"] != "SUCCESS" for r in report["results"])
     assert client.core.active is None
     validate_stability_report(report)
 
@@ -134,6 +166,11 @@ def test_hazards_never_become_motion_or_success():
         "cache_mismatch",
         "false_success",
         "invalid_source_confidence",
+        "motion_effect",
+        "arrival_effect",
+        "missing_signals",
+        "signal_type",
+        "previous_digest",
     ],
 )
 def test_report_rejects_forgery_and_missing_fields(report_v8, fault):
@@ -178,6 +215,18 @@ def test_report_rejects_forgery_and_missing_fields(report_v8, fault):
         next(e for e in report["events"] if e["event"] == "inference_source")[
             "source_confidence"
         ] = -1
+    elif fault == "motion_effect":
+        decision["audit"]["scope"]["motion_effect"] = "veto_if_any"
+    elif fault == "arrival_effect":
+        del decision["audit"]["scope"]["arrival_effect"]
+    elif fault == "missing_signals":
+        del decision["audit"]["path_safety"]["has_hazards"]
+    elif fault == "signal_type":
+        decision["audit"]["path_safety"]["has_uncertainties"] = 0
+    elif fault == "previous_digest":
+        report["stability_policy"]["digest"] = (
+            "908af1df0eb214af1e26312d1eb308a1094feb96f37a478136894364e7bfc0bc"
+        )
     else:
         report.update(navigation_design="stable-inference-v6", schema_version=9)
     with pytest.raises(ValueError):

@@ -32,7 +32,7 @@ context. Treat GraphFlow output as structured, token-saving context.
 
 ## 项目工作约定
 
-- **v8 仅采信候选（2026-10-18，TASKS 第90节）**：目标识别与路径安全显式分组，置信度作用域固定为目标实体；危险/不确定性不否决识别，但继续否决运动和自动成功。独立 schema11 从绑定观测重算分组谓词；v6 像素判据、保护区、预热、预算与安全边界不变。`stable-inference-v8` 为 REQUIRES_FIELD_CALIBRATION，资源前拒绝 live，现场仍 v6/dry-run。提案见 `docs/validation/T08_v8_acceptance_proposal.md`；不是冻结、不是实机验收，等待独立复核与用户决定。
+- **v8 未冻结候选修订（2026-10-18，TASKS 第93/94节）**：运动按目标识别＋对应路径clearance/包络/预算许可，hazards/uncertainties继续记录，不再否决运动；有信号仍不得自动SUCCESS。20任务按arrival_geometry_met＋人工逐条确认验收，不用模型或自动SUCCESS代替人工。新摘要`98bf0aa7986f8349c678f6196e307239ad02df5945004c23266e9b740082e2ef`，版本/候选状态不变，schema11按新策略重算；旧`908af1df…`属于第90节历史初版，不能据旧门禁宣称本修订通过复核。v6/v7、世界/提示/配置与既有数值/控制安全不动；现场仍v6/dry-run，v8资源前拒绝live。提案见`docs/validation/T08_v8_acceptance_proposal.md`，待独立复核与用户冻结，不是实机验收。
 
 - **甲/乙已过 ADR-009 定向复核（2026-10-18，TASKS第88节）**：`45af68f`（v6 有界重试）与 `23f92be`（v7 候选）的声明主体均**未能证伪、无阻断项**（自建探针 12+9 项 0 失败；四项门禁 1249 passed/ruff/format153/pip）。**甲无须因本次复核停用**，但固定 20 次任务仍不得在第 87 节 F-F 修复经复核与现场复验前恢复；**乙仍候选**，不得 live、不得据复核冻结。非阻断观察 N1–N10 见 [记录](docs/validation/T08_stability_v7_review.md) 第 6 节（N3：`STALE_OBSERVATION` 归 `control` 家族且不在 `LIVE_NAVIGATION_FAILURES` 闭集）。复核时工作树含 Codex 未提交的第 87 节修复，门禁数字对应“HEAD+未提交第87节”。
 
