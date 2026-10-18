@@ -27,11 +27,14 @@ def load_policy(version="v1"):
         expected_v8 = {
             **load_policy("v6")[0],
             "version": "local-rgb-stability-v8-candidate",
-            "status": "REQUIRES_FIELD_CALIBRATION",
+            "status": policy.get("status"),
             **DECLARATION,
         }
-        if json.dumps(policy, sort_keys=True, allow_nan=False) != json.dumps(
-            expected_v8, sort_keys=True
+        if (
+            type(policy.get("status")) is not str
+            or policy["status"] not in {"REQUIRES_FIELD_CALIBRATION", "FROZEN"}
+            or json.dumps(policy, sort_keys=True, allow_nan=False)
+            != json.dumps(expected_v8, sort_keys=True)
         ):
             raise ValueError("invalid v8 acceptance candidate declaration")
     if version == "v7":

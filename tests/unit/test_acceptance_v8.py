@@ -83,15 +83,17 @@ def test_v8_exact_v6_base_and_candidate_digest():
     assert v8 == {
         **v6,
         "version": "local-rgb-stability-v8-candidate",
-        "status": "REQUIRES_FIELD_CALIBRATION",
+        "status": "FROZEN",
         **DECLARATION,
     }
     root = Path("src/vrc_agent/live_navigation")
     assert hashlib.sha256((root / "stability_v8.json").read_bytes()).hexdigest() == h8
     assert (root / "stability_v8.sha256").read_bytes() == (h8 + "\r\n").encode()
-    for version in range(1, 8):
+    for version in range(1, 9):
         policy, _ = load_policy(f"v{version}")
-        assert policy["status"] == ("FROZEN" if version in (5, 6) else "REQUIRES_FIELD_CALIBRATION")
+        assert policy["status"] == (
+            "FROZEN" if version in (5, 6, 8) else "REQUIRES_FIELD_CALIBRATION"
+        )
 
 
 def test_dirty_scene_recognized_and_motion_uses_clearance_without_unknown_zero_substitution():

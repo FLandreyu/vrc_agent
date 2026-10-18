@@ -53,7 +53,7 @@ def assemble_v8(dirty=False, distractor=False, no_clearance=False):
     return runtime, client, calls
 
 
-def test_candidate_refuses_live_before_resources_and_base_bypass(monkeypatch, tmp_path):
+def test_frozen_v8_live_needs_consents_and_unfrozen_still_refuses(monkeypatch, tmp_path):
     with pytest.raises(ValueError, match="independent ControllerProcess"):
         SupervisedNavigation(object(), None, None, None, None)
     config = AppConfig(
@@ -64,7 +64,7 @@ def test_candidate_refuses_live_before_resources_and_base_bypass(monkeypatch, tm
     monkeypatch.setattr(session, "load_config", lambda _: config)
 
     def forbidden(*args, **kwargs):
-        pytest.fail("candidate created a resource")
+        pytest.fail("refused live run created a resource")
 
     for name in ("build_provider", "ControllerProcess", "live_capture", "Perception"):
         monkeypatch.setattr(session, name, forbidden)
@@ -78,11 +78,37 @@ def test_candidate_refuses_live_before_resources_and_base_bypass(monkeypatch, tm
         send_images=True,
         state_dir=str(tmp_path),
     )
+    # 冻结不替代现场同意：标定/付费/图像三项缺一，仍在资源前拒绝。
+    for name in ("confirm_calibration", "allow_paid", "send_images"):
+        withheld = SimpleNamespace(**{**vars(args), name: False})
+        with pytest.raises(ValueError, match="paid and image consent"):
+            asyncio.run(session.navigation_entry(withheld))
+    policy, digest = session.load_policy("v8")
+    assert policy["status"] == "FROZEN"
+    # 未冻结（候选）策略仍在资源前拒绝 live：冻结只改状态，不放宽该门禁。
+    monkeypatch.setattr(
+        session,
+        "load_policy",
+        lambda _: ({**policy, "status": "REQUIRES_FIELD_CALIBRATION"}, digest),
+    )
     with pytest.raises(ValueError, match="field calibration"):
+        asyncio.run(session.navigation_entry(args))
+    monkeypatch.setattr(session, "load_policy", lambda _: (policy, digest))
+
+    def sentinel(*args, **kwargs):
+        raise RuntimeError("frozen policy gate passed")
+
+    for name in ("build_provider", "ControllerProcess", "live_capture", "Perception"):
+        monkeypatch.setattr(session, name, sentinel)
+    with pytest.raises(RuntimeError, match="frozen policy gate passed"):
         asyncio.run(session.navigation_entry(args))
     runtime, client, calls = assemble_v8()
     with pytest.raises(ValueError, match="requires v8 runtime"):
         SupervisedNavigation(client, None, None, runtime.world, runtime.task)
+    monkeypatch.setattr(
+        "vrc_agent.live_navigation.stable_runtime.load_policy",
+        lambda _: ({**policy, "status": "REQUIRES_FIELD_CALIBRATION"}, digest),
+    )
     client.config = client.config.model_copy(update={"mode": "live"})
     with pytest.raises(ValueError, match="candidate"):
         StableNavigationV8(client, None, None, runtime.world, runtime.task)
@@ -159,7 +185,7 @@ def test_signals_without_clearance_still_pause():
         "meta",
         "arrival",
         "decision",
-        "live",
+        "max_actions",
         "generated",
         "old_schema",
         "cache_missing",
@@ -199,8 +225,8 @@ def test_report_rejects_forgery_and_missing_fields(report_v8, fault):
         ]["frame_ref"]
     elif fault == "decision":
         report["events"].remove(decision)
-    elif fault == "live":
-        report.update(mode="live", sends_live_input=True)
+    elif fault == "max_actions":
+        report["run_parameters"]["max_actions"] = report["run_parameters"]["max_actions"] - 1
     elif fault == "generated":
         next(e for e in report["events"] if e["event"] == "observation")[
             "scene_generated_at_ns"
@@ -233,3 +259,17 @@ def test_report_rejects_forgery_and_missing_fields(report_v8, fault):
         validate_stability_report(report)
     # 实际报告应可写成 JSON 后再次重算，不依赖内存模型对象。
     validate_stability_report(json.loads(json.dumps(report_v8)))
+
+
+def test_unfrozen_policy_still_cannot_claim_live(report_v8, monkeypatch):
+    report = copy.deepcopy(report_v8)
+    report.update(mode="live", sends_live_input=True)
+    policy, digest = session.load_policy("v8")
+    candidate = {**policy, "status": "REQUIRES_FIELD_CALIBRATION"}
+    report["stability_policy"] = {"digest": digest, **candidate}
+    monkeypatch.setattr(
+        "vrc_agent.live_navigation.stability_report.load_policy",
+        lambda _version: (candidate, digest),
+    )
+    with pytest.raises(ValueError, match="cannot claim live"):
+        validate_stability_report(report)
