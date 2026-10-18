@@ -19,7 +19,7 @@ from vrc_agent.live_navigation.world import (
 )
 
 FIXTURE = json.loads((Path(__file__).parents[1] / "fixtures/world_v3_confidence.json").read_text())
-WORLD_DIGEST = "3e7b4566cfabcb6d2527c5d221b4e9d0427b542adb8d6183bc13cf90d3d9885f"
+WORLD_DIGEST = "1da677140aad5a76920a7ad5cd88a5ffc1899300062cb852392b9483067f19f7"
 
 
 def observed(group="G2", confidence=0.7, *, version="v3", box=(0.4, 0.4, 0.6, 0.6)):
@@ -64,7 +64,7 @@ def test_candidate_exact_v2_plus_explicit_thresholds_and_original_digests():
     assert v1.digest() == "dda1d3b1dce2605df37a9f4cf4a68cea5e1e639e7037351fb0c4b54bdfb7e335"
     assert v2.digest() == "b65b3dab51ef720c44b942d7ed67a975fbc52ed2bc1c65610718dc47b23d1ac0"
     assert v3.digest() == WORLD_DIGEST
-    assert v3.status == "REQUIRES_FIELD_CALIBRATION"
+    assert v3.status == "FROZEN"
     assert v3.source_world_v2_digest == v2.digest()
     data = v3.model_dump(mode="json")
     for name in ("status", "source_world_v2_digest"):

@@ -9,6 +9,7 @@ import pytest
 from test_navigation_v6 import assert_zero
 from test_stability_v9_runtime import assemble_v9
 
+from vrc_agent.config import AppConfig
 from vrc_agent.live_navigation import session
 from vrc_agent.live_navigation.stability_report import validate_stability_report
 from vrc_agent.live_navigation.stable_runtime import StableNavigationV9
@@ -43,18 +44,13 @@ def assemble_world_v3(group="G2", confidence=0.72, **kwargs):
     return runtime, client, calls
 
 
-def test_candidate_world_refuses_live_before_any_resource(monkeypatch, tmp_path):
-    def forbidden(*args, **kwargs):
-        pytest.fail("candidate world created a resource")
+def test_frozen_world_v3_live_needs_consents_and_unfrozen_still_refuses(monkeypatch, tmp_path):
+    frozen = load_live_world("v3")
+    candidate = frozen.model_copy(update={"status": "REQUIRES_FIELD_CALIBRATION"})
 
-    for name in (
-        "load_config",
-        "build_provider",
-        "ControllerProcess",
-        "live_capture",
-        "Perception",
-    ):
-        monkeypatch.setattr(session, name, forbidden)
+    def forbidden(*args, **kwargs):
+        pytest.fail("refused live run created a resource")
+
     args = SimpleNamespace(
         task="G2-1",
         world_version="v3",
@@ -65,16 +61,53 @@ def test_candidate_world_refuses_live_before_any_resource(monkeypatch, tmp_path)
         send_images=True,
         state_dir=str(tmp_path),
     )
-    with pytest.raises(ValueError, match="candidate world"):
+    # 未冻结世界仍在任何资源/配置前拒绝 live。
+    with monkeypatch.context() as patch:
+        patch.setattr(session, "load_live_world", lambda *a, **k: candidate)
+        for name in (
+            "load_config",
+            "build_provider",
+            "ControllerProcess",
+            "live_capture",
+            "Perception",
+        ):
+            patch.setattr(session, name, forbidden)
+        with pytest.raises(ValueError, match="candidate world"):
+            asyncio.run(session.navigation_entry(args))
+    # 冻结不替代现场同意：三项缺一仍在资源前拒绝。
+    monkeypatch.setattr(
+        session,
+        "load_config",
+        lambda _: AppConfig(
+            navigation_design="stable-inference-v9",
+            navigation_motion_profile="field",
+            control={"observation_max_age_ms": 4000, "lease_extension_max": 5},
+            perception={"provider": "openai_compat", "model": "memory", "budget_usd": 1.0},
+        ),
+    )
+    for name in ("build_provider", "ControllerProcess", "live_capture", "Perception"):
+        monkeypatch.setattr(session, name, forbidden)
+    for name in ("confirm_calibration", "allow_paid", "send_images"):
+        withheld = SimpleNamespace(**{**vars(args), name: False})
+        with pytest.raises(ValueError, match="paid and image consent"):
+            asyncio.run(session.navigation_entry(withheld))
+
+    def sentinel(*args, **kwargs):
+        raise RuntimeError("frozen world gate passed")
+
+    for name in ("build_provider", "ControllerProcess", "live_capture", "Perception"):
+        monkeypatch.setattr(session, name, sentinel)
+    with pytest.raises(RuntimeError, match="frozen world gate passed"):
         asyncio.run(session.navigation_entry(args))
-    args.mode = "dry-run"
-    plan = asyncio.run(session.navigation_entry(args))
+    plan = asyncio.run(
+        session.navigation_entry(SimpleNamespace(**{**vars(args), "mode": "dry-run"}))
+    )
     assert plan["mode"] == "plan-only" and plan["sends_live_input"] is False
-    assert plan["world"]["status"] == "REQUIRES_FIELD_CALIBRATION"
+    assert plan["world"]["status"] == "FROZEN"
     runtime, client, calls = assemble_world_v3()
     client.config = client.config.model_copy(update={"mode": "live"})
     with pytest.raises(ValueError, match="candidate world"):
-        StableNavigationV9(client, forbidden, forbidden, runtime.world, runtime.task)
+        StableNavigationV9(client, forbidden, forbidden, candidate, runtime.task)
     assert not calls and not client.transport.messages
 
 
@@ -96,20 +129,29 @@ def test_world_v3_threshold_is_recorded_and_recomputed(report_world_v3):
     assert report_world_v3["world_version"] == "vrchat-home-live-v3"
 
 
-@pytest.mark.parametrize("fault", ["missing", 0.85, 0.9, True, "0.7", "digest", "live", "send"])
+@pytest.mark.parametrize("fault", ["missing", 0.85, 0.9, True, "0.7", "digest"])
 def test_threshold_and_candidate_report_forgery_rejected(report_world_v3, fault):
     report = copy.deepcopy(report_world_v3)
     if fault == "missing":
         del report["run_parameters"]["target_min_confidence"]
     elif fault == "digest":
         report["suite_digest"] = load_live_world("v2").digest()
-    elif fault == "live":
-        report["mode"] = "live"
-    elif fault == "send":
-        report["sends_live_input"] = True
     else:
         report["run_parameters"]["target_min_confidence"] = fault
     with pytest.raises(ValueError):
+        validate_stability_report(report)
+
+
+def test_unfrozen_world_report_cannot_claim_live(report_world_v3, monkeypatch):
+    report = copy.deepcopy(report_world_v3)
+    report.update(mode="live", sends_live_input=True)
+    frozen = load_live_world("v3")
+    candidate = frozen.model_copy(update={"status": "REQUIRES_FIELD_CALIBRATION"})
+    report["suite_digest"] = candidate.digest()
+    monkeypatch.setattr(
+        "vrc_agent.live_navigation.world.load_live_world", lambda _version: candidate
+    )
+    with pytest.raises(ValueError, match="candidate world"):
         validate_stability_report(report)
 
 

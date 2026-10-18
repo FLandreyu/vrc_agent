@@ -1589,3 +1589,11 @@ exit 0；完整输出`.runtime/verify/t08_world_v3_plan_v2.log`。附加显式`-
 - 门禁（复核者复跑，干净树）：`1459 passed in 308.09s (0:05:08)`、`All checks passed!`、`163 files already formatted`、`No broken requirements found.`（均exit 0）；日志前缀`.runtime/verify/t08_world_v3_review_`。只读入口：默认plan exit 0；显式`--world-version v3` exit 0、plan-only、sends_live_input=false、摘要`3e7b…`、状态REQUIRES_FIELD_CALIBRATION，未创建状态目录。
 - 非阻断观察：N1 基类`require_live`对v1/v2为no-op（未来世界类型若忘记覆盖会静默放行live，建议改为必须显式覆盖）；N2 旧v1/v2重贴标签仍可过校验（既有结构相同局限，v3因候选门禁不可利用，本提交未扩大）；N3 世界/摘要校验先于schema/design校验，畸形旧报告错误顺序变化但仍是拒绝路径；N4 42条观测与3个来源工件在`.runtime/`未入库，复算依赖本机原件；N5 G4 0/21 clearance，0.7不等于可前进；N6 整数`1`/`0`被strict浮点拒绝（预期行为，生成脚本须写0.7/0.85）；N7 门禁耗时295.33s vs 308.09s属机器差异，通过数一致。
 - 未覆盖与边界：未做live/ARM/真实模型/真实画面；未重拍G1/G3/G5，0.85是“不放松”非“已验证足够”；未执行20任务，不主张≥16/20；不构成本轮通过实机验收、不构成冻结授权。v3仍为`REQUIRES_FIELD_CALIBRATION`候选并拒绝live；冻结需用户决定并同步重生成sidecar，之后另行现场复验。记录见`docs/validation/T08_world_v3_review.md`。
+## 112. T08 world v3 机械冻结（2026-10-18）
+
+- 负责人现场会话；依据第111节定向复核（`aa25324`，声明主体未能证伪、无阻断项）与用户明确授权。只做状态位移：不改门槛取值、几何、任务、提示、血统或策略；T08 仍 IN_PROGRESS。记录见 `docs/validation/T08_world_v3_freeze.md`。
+- `vrchat_home_live_v3.json` 的 `status` 由`REQUIRES_FIELD_CALIBRATION`改为`FROZEN`；`version`仍`vrchat-home-live-v3`。语义摘要由`3e7b4566…9885f`变为**`1da677140aad5a76920a7ad5cd88a5ffc1899300062cb852392b9483067f19f7`**（规范化模型摘要，与 sidecar/loader 口径一致；文件字节 SHA256 为`48fc1079…1171b`，两者不混称）。第111节已预警改 status 会改变语义摘要、必须同步重生成 sidecar，本轮按此执行。
+- 取值不变：G1/G3/G5=0.85、G2/G4=0.7；clearance 实体 0.9 与几何不变。v1（`dda1d3b1…`）/v2（`b65b3dab…`）世界与 sidecar 未动；稳定性 v1–v9 未动（v9 仍 `c9fb45ee…`、`FROZEN`）。
+- 测试更新两个文件：`tests/unit/test_world_v3_confidence.py` 的 `WORLD_DIGEST` 改为冻结后摘要、v3 期望状态改`FROZEN`；`tests/integration/test_world_v3_runtime.py` 把“候选世界拒绝 live”改为“未冻结世界仍在配置/资源前与运行时层拒绝＋冻结后仍需三项同意＋只读计划显示 FROZEN”，报告篡改用例移除`live`/`send`（冻结后声明 live 合法）、保留其余 6 类并新增“未冻结世界报告不得声明 live”。
+- 门禁（冻结后，日志`.runtime/tmp/w3_freeze_pytest.log`、`.runtime/tmp/w3_freeze_plan.log`）：`1458 passed in 290.12s (0:04:50)`；`All checks passed!`；`163 files already formatted`；`No broken requirements found.`；`navigate-live --task G2-1 --world-version v3` 只读计划 exit 0。定向回归 `53 passed in 33.02s`。
+- 边界与后续：冻结不等于实机验收；`configs/navigation-live.toml` 未改（仍 v9 + dry-run），世界版本由命令行参数选择；20 次任务与人工确认未开始。现场预期（第111节 N5）：G2-2 有望通过识别并真正起步（复现中 clearance 8/21），G4-1 即使识别通过仍可能只等待（clearance 0/21）——那属 clearance 输出问题，与本冻结无关。

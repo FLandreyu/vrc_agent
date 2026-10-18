@@ -306,6 +306,6 @@
     }
   ],
   "source_world_digest": "dda1d3b1dce2605df37a9f4cf4a68cea5e1e639e7037351fb0c4b54bdfb7e335",
-  "status": "REQUIRES_FIELD_CALIBRATION",
+  "status": "FROZEN",
   "source_world_v2_digest": "b65b3dab51ef720c44b942d7ed67a975fbc52ed2bc1c65610718dc47b23d1ac0"
 }
