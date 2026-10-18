@@ -1307,3 +1307,15 @@ tests/integration/test_probe_safety.py 202E3709E5A52A5C3F21CD4CB07B81FDA3D98C93C
 - 边界：切换不等于实机验收。live 仍需显式`--mode live`、标定/付费/图像三项同意、真实`openai_compat`供应商与正预算、精确且不被遮挡的窗口采集、本机 F9 ARM；IPC/JSON 的 ARM/续租仍被拒绝，30s 基础租约与到期归零不变。20 次任务仍按第93节`arrival_geometry_met`＋人工逐条确认，不要求自动 SUCCESS。
 - 随 v8 生效的已知代价（第95节 N4）：模型误报 clearance 时，整场 `has_hazards`/`has_uncertainties`不再拦运动；现场须把“有信号仍执行运动”的动作单列复核（记录 observation ID、动作、clearance 证据、实际是否接近障碍）。
 - 下一步：用户在场的 v8 首次 live 试点（单任务，建议先 G2 组几何干净的任务），逐项记录`arrival_geometry_met`、`arrival_review_required`、机器 outcome、租约续租次数与“有信号仍运动”动作；试点通过后再谈固定 20 次任务批次。
+
+## 98. T08 v8 首次现场试点（2026-10-18）
+
+- 负责人现场会话；装配按第97节（v8 `FROZEN`，摘要`11b98adff4003ee62d40f3a6c96960f50d0d5c2d743a264f2f9dd14af2680cae`，field 包络、4000ms、jpeg85、默认 dry-run，本轮显式 live）。用户在场、VRChat 前台；任务 G2-1、世界 v2；报告`.runtime/live/G2-1-v8pilot1/navigation-live/G2-1-d5794dc1904d4c1b87cafb993a3763e2.json`（82,632 B，schema 11）。不是 20 次任务验收，未到达。
+- 结局`SCENE_UNSTABLE`，46.1 s（09:05:05→09:05:51 UTC），租约续租 1 次（+30s，`control_budget.total_ms=60000`、`elapsed_ms=36953`），模型 5 次调用、`$0.004714`（10,945 tokens / 5 图，`cost_complete=true`），hourly 折算`$0.368/h`；报告仅 1 个动作（`wait`），**0 个 motion**。
+- **v8 运动作用域本轮未被证伪**：唯一一次决策`proposal_permitted=false`，原因是该帧模型未给出 clearance（`forward_clearance=false`、`recovery_clearance=false`），派发`wait`；目标七谓词全真（`failed_predicates=[]`），`confidence_scope=target_entity`、`confidence=0.9`，`has_hazards=true`/`has_uncertainties=true`但未再否决运动。这与 v6 时代“整场信号否决、0 可动”形成对照。
+- **真正卡点是保护区零容差**：6 次稳定性比较中 3 次被拒，全部由`protected_changed`引起，全局变化极小——cycle1 attempt1 `changed=7 / protected=4`、attempt2 `changed=51 / protected=21`；cycle2 attempt1 `changed=109 / protected=44`；通过的 3 次为`2/0`、`0/0`、`1/0`。保护区 = `forward_clearance`外扩地板框 + 目标外扩框，`protected_visible_px≈1.16M–1.28M`，零容差，故 4–44 px 的渲染抖动即整次 attempt 失败。属第81节 F-E 同类问题在 v8 上重演。
+- 时间结构：单 attempt ≈7.3 s（预检 ~2.7 s＋推理 ~2.9 s＋比较 ~0.4 s），每周期最多 3 attempt；cycle1 用满 3 次才拿到稳定帧（~19 s），cycle2 第 3 次预检`accepted=false`→`SCENE_UNSTABLE`。180 s/40 步预算主要被预热与重试消耗。阶段耗时（p50/p95）：capture 307.6/409.3 ms、encode 36.8/91.2 ms、infer 2893.4/3107.3 ms、stability 407.8/481.8 ms、submit 19.9 ms。
+- 关键正面证据：cycle2 第 2 次尝试产出`obs-000026`，模型给出`forward_clearance` bbox`[0.1,0.62,0.9,0.98]`、conf 0.9，按 v8 几何（x1≤0.35、x2≥0.65、y1≤0.7、y2≥0.9）**合格**；若该帧稳定，v8 会下发 forward 0.4/500ms。5 次调用中 4 次模型给出 clearance 实体（是否逐帧几何合格，仅`obs-000026`可确认）。
+- 判读：本次失败既不是 v8 运动许可语义问题，也不是模型完全不给 clearance；瓶颈是“保护区零容差 + 拒绝即消耗 attempt”。按当前判据，即使 clearance 合格，也可能在拿到决策前被稳定性重试耗尽预算。
+- 边界：本轮未改任何代码/策略/配置；未达成`arrival_geometry_met`，无人工到达确认对象；N4（有信号仍运动）本轮未触发（0 motion），因此其风险仍未被现场检验。
+- 下一步（待用户决定）：①继续用当前 v8 跑 1–2 个任务收集分布，确认保护区抖动是否系统性；②按本节证据提出 v9 候选（保护区容差或保护区范围修订），由实现方实施、另一执行者复核、用户冻结后再谈 20 次任务。
