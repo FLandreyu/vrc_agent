@@ -1576,3 +1576,16 @@ No broken requirements found.
 ```
 
 exit 0；完整输出`.runtime/verify/t08_world_v3_plan_v2.log`。附加显式`--world-version v3`同样只读、exit 0，摘要`3e7b4566cfabcb6d2527c5d221b4e9d0427b542adb8d6183bc13cf90d3d9885f`、世界状态`REQUIRES_FIELD_CALIBRATION`（`t08_world_v3_plan_v3.log`）；未创建真实资源。`git diff --check`通过；GraphFlow index当前无可调用工具，未伪称已索引。
+
+## 111. T08 world v3 定向复核（2026-10-18）
+
+- 对象与性质：`aa25324`（世界v3识别门槛候选，父`32fd234`）的 ADR-009 定向复核；只读，未启动live、未ARM、未调付费模型、未发真实输入、未读密钥；未改产品代码/策略/阈值/世界/配置/提示。GraphFlow只返回symbol anchor（overlap≈11%），无可用摘要/规划/索引结果，未作为证据引用。
+- 结论：**声明主体未能证伪、无阻断项**。自建探针`.runtime/verify/t08_world_v3_review_probe.py` **192项检查0失败**（工件`…probe.json`、日志`…probe.log`，exit 0），不import实现方测试；N1–N7为非阻断观察。**不是冻结，也不是实机验收。**
+- 摘要纪律：v3语义摘要`3e7b4566cfabcb6d2527c5d221b4e9d0427b542adb8d6183bc13cf90d3d9885f`=sidecar=loader；原始文件SHA256`1ab60148…bb0b33`仅文件指纹，二者未混称。v3与v2仅差version/schema/status/source_world_v2_digest与5个`min_confidence`，五份提示逐一等于v2。旧世界v1/v2（`dda1d3b1…`/`b65b3dab…`）、稳定性v1–v9共18文件在本提交中零改动，v9仍`c9fb45ee…`且FROZEN；control/、configs/、`acceptance_v8.py`零改动，现场仍v9＋世界v2＋dry-run。
+- 门槛语义：v1/v2按(version, group)显式0.85、无缺字段回落；v3 G2/G4=0.7、G1/G3/G5=0.85必填且`strict=True`，True/False/整数/字符串/越界/None/NaN/Inf/缺字段全拒，`model_construct`绕过校验后读取抛AttributeError；10类越权改动被拒；FROZEN可校验但摘要变为`1da67714…`，冻结须同步重生成sidecar。clearance仍独立0.9＋原几何。
+- 候选纪律：v3 plan-only在资源前返回；live在会话装配与`SupervisedNavigation`构造两处均在provider/控制器/采集/推理前拒绝；FROZEN可构造且G2门槛0.7；全仓仅两处`.require_live(`调用，无环境变量旁路；同流程v2可过世界门禁，v3不行。
+- 报告重算：真实v9/v2报告（无新字段）及显式0.85通过；0.7、0.85+1e-10、True、"0.85"、None均`target confidence threshold mismatch`；删除字段的旧v2报告仍通过；v3 dry-run报告target=0.7通过，0.85、缺字段、v2摘要、live声明均拒；纯重算v3/G4→0.7、v2/G2→0.85；接受回放用v3地标（G4=0.7），SEMANTICS仍`target-path-v8`；v9生产在`stable_runtime.py:545`用`world.landmark(task.group)`构造AcceptanceSkillV8，门槛真实进入决策。
+- 边界与风险：G2/G4在0.70通过、0.699/0.55拒绝；同一0.72置信度G2通过、G1拒绝；42条观测分布`{0.72:34, 0.82:3, 0.90:5}`，旧0.85下G2 5/21、G4 0/21，3条更远0.55全拒；其余谓词/到达/几何/包络/预算/预热/租约/急停未改；hazards+uncertainties在场时识别可通过但arrival不放行。0.7把0.72–0.85纳入识别面，但G4 clearance 0/21，不保证能前进，属现场清单而非代码缺陷。
+- 门禁（复核者复跑，干净树）：`1459 passed in 308.09s (0:05:08)`、`All checks passed!`、`163 files already formatted`、`No broken requirements found.`（均exit 0）；日志前缀`.runtime/verify/t08_world_v3_review_`。只读入口：默认plan exit 0；显式`--world-version v3` exit 0、plan-only、sends_live_input=false、摘要`3e7b…`、状态REQUIRES_FIELD_CALIBRATION，未创建状态目录。
+- 非阻断观察：N1 基类`require_live`对v1/v2为no-op（未来世界类型若忘记覆盖会静默放行live，建议改为必须显式覆盖）；N2 旧v1/v2重贴标签仍可过校验（既有结构相同局限，v3因候选门禁不可利用，本提交未扩大）；N3 世界/摘要校验先于schema/design校验，畸形旧报告错误顺序变化但仍是拒绝路径；N4 42条观测与3个来源工件在`.runtime/`未入库，复算依赖本机原件；N5 G4 0/21 clearance，0.7不等于可前进；N6 整数`1`/`0`被strict浮点拒绝（预期行为，生成脚本须写0.7/0.85）；N7 门禁耗时295.33s vs 308.09s属机器差异，通过数一致。
+- 未覆盖与边界：未做live/ARM/真实模型/真实画面；未重拍G1/G3/G5，0.85是“不放松”非“已验证足够”；未执行20任务，不主张≥16/20；不构成本轮通过实机验收、不构成冻结授权。v3仍为`REQUIRES_FIELD_CALIBRATION`候选并拒绝live；冻结需用户决定并同步重生成sidecar，之后另行现场复验。记录见`docs/validation/T08_world_v3_review.md`。
