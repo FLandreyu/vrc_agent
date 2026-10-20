@@ -1694,3 +1694,14 @@ exit 0，world=`vrchat-home-live-v3`/FROZEN；完整输出`.runtime/verify/t08_v
 - 非阻断观察 N1–N7（见记录第4节，摘要）：`alternate_direction`/`reset_path_waits_per_scan`/`post_scan_requires_new_observation` 三键声明但未被读取（靠严格相等固定，放宽校验才会失效）；`eligible` 中包络/计数两项在归一化后近似恒真；现场 3–4s 推理下 15 决策约 45–60s，会先撞 30s 基础租约需本机 Ctrl+F9；`validate_acceptance` 单独调用不要求 observation 有 `inference_source`（唯一入口会拒），且 `next(...)` 的 `StopIteration` 未被外层捕获（本轮未构造到）；`pending_scan` 守卫的 `ValueError` 在运行时会折成 `RUNTIME_ERROR`（未构造到触发）；`AGENTS.md` v10 胶囊的阻断表述已过期（本轮更新）；`T08_path_scan_v10.md:69-73` 的历史自陈与 `5ae2a68` 分属两文，不需回改。
 - 冻结前置（需另案）：`stability.py:27` 的 `expected_v10` 严格钉 `status="REQUIRES_FIELD_CALIBRATION"`，**仅改 status 与重生成 sidecar 不足**，须先放开状态闭集；随后切 `navigation_design`→v10、人在场复验（含续租清单）、固定 20 次任务与人工逐条到达确认。
 - 边界：本轮不是冻结授权、不是实机验收；未启动 live、未 ARM、未调用付费模型、未发送真实输入。复核者未改产品代码/策略/控制/配置/世界/提示。
+
+## 118. T08 v10 冻结前置：状态闭集放开（2026-10-20，另案授权）
+
+- 状态：按用户“方案2”授权，只放开 v10 的 `status` 闭集，**待独立复核**；策略文件未动，v10 仍 `REQUIRES_FIELD_CALIBRATION`、仍拒绝 live，现场仍 v9＋world v3＋dry-run，T08 仍 IN_PROGRESS。负责人：现场会话（DSH/Flash）。记录见 [v10冻结前置](validation/T08_v10_freeze_prep.md)。
+- 依据：第117节复核结论“未能证伪、无阻断项”，其第5节点名冻结前置——`stability.py` 的 v10 分支把 status 钉死为 `REQUIRES_FIELD_CALIBRATION`，仅改 status + 重生成 sidecar 会被 loader 拒绝。
+- 改动（1处）：`stability.py` 的 v10 分支由常量 status 改为 `policy.get("status")`，并加闭集 `{REQUIRES_FIELD_CALIBRATION, FROZEN}` 与 `type is str` 校验，其余键仍与 v9 主体严格逐键相等、`path_scan` 仍与模块常量 `PATH_SCAN` 相等——与 v6/v8/v9 既有三段式做法一致。**放宽的只有 status 取值集合**，判据/阈值/包络/时限/租约/`path_scan` 语义一律不动。
+- live 门槛不变：`stable_runtime.py:38` 与 `session.py:83` 仍要求 `status == "FROZEN"`，故本轮不放宽任何现场准入；候选仍拒绝 live。
+- 测试同步：`test_candidate_loader_rejects_mutated_declarations[status]` 的故障值由 `"FROZEN"` 改为 `"CANDIDATE"`（旧假设已不成立，闭集外取值仍拒）；新增 `test_frozen_v10_declaration_loads_without_relaxing_other_keys`（冻结声明可加载、与 v9 差异仍只有 `{version, path_scan}`、`"FROZEN_APPROVED"` 仍拒）。新增用例首写误判“冻结后与 v9 差异含 status”，实测 v9 本身已 FROZEN、差异只有 `{version, path_scan}`，按实测更正。
+- 验证：定向 `tests/unit/test_path_scan_v10.py` 19 passed in 1.78s；含 v9/v3 回归与 v10 运行时在内的定向批 81 项（首轮 1 项为我方断言误判，更正后全绿）；四项门禁 `1504 passed in 572.35s (0:09:32)`＋ruff/format(166)/pip 全绿（均 exit 0，日志`.runtime/tmp/v10freeze_pytest.log`）；1504＝第117节基线1503＋1个新增冻结声明用例。
+- 不变项：`stability_v10.json`/`.sha256` 未改（仍 `REQUIRES_FIELD_CALIBRATION`／`437849cf…bff3`）；v1–v9 策略/sidecar、世界、`configs/`、`control/`、提示、`skill.py`、`acceptance_v8.py` 未改。
+- 边界：本轮不是冻结授权、不是实机验收。冻结仍需：本次增量经 DSH 定向复核 → 用户明确授权 → 改 `status` 并重生成 sidecar（新摘要）→ 切 `navigation_design` 到 v10 → 人在场现场复验（含第117节 N3 的 Ctrl+F9 续租清单）→ 固定 20 次任务与人工逐条到达确认。

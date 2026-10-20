@@ -27,11 +27,14 @@ def load_policy(version="v1"):
         expected_v10 = {
             **load_policy("v9")[0],
             "version": "local-rgb-stability-v10-candidate",
-            "status": "REQUIRES_FIELD_CALIBRATION",
+            "status": policy.get("status"),
             "path_scan": PATH_SCAN,
         }
-        if json.dumps(policy, sort_keys=True, allow_nan=False) != json.dumps(
-            expected_v10, sort_keys=True
+        if (
+            type(policy.get("status")) is not str
+            or policy["status"] not in {"REQUIRES_FIELD_CALIBRATION", "FROZEN"}
+            or json.dumps(policy, sort_keys=True, allow_nan=False)
+            != json.dumps(expected_v10, sort_keys=True)
         ):
             raise ValueError("invalid v10 path scan candidate declaration")
     if version == "v9":

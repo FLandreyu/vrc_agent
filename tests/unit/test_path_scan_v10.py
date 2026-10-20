@@ -195,7 +195,8 @@ def test_candidate_loader_rejects_mutated_declarations(monkeypatch, tmp_path, fa
     elif fault == "bool":
         policy["path_scan"]["enabled"] = 1
     elif fault == "status":
-        policy["status"] = "FROZEN"
+        # 冻结闭集{REQUIRES_FIELD_CALIBRATION, FROZEN}之外的取值必须拒绝。
+        policy["status"] = "CANDIDATE"
     elif fault == "threshold":
         policy["max_changed_ppm"] = 60000
     else:
@@ -206,5 +207,36 @@ def test_candidate_loader_rejects_mutated_declarations(monkeypatch, tmp_path, fa
     (tmp_path / "stability_v10.json").write_bytes(raw)
     (tmp_path / "stability_v10.sha256").write_text(hashlib.sha256(raw).hexdigest())
     monkeypatch.setattr(stability, "files", lambda _: tmp_path)
+    with pytest.raises(ValueError, match="v10"):
+        stability.load_policy("v10")
+
+
+def test_frozen_v10_declaration_loads_without_relaxing_other_keys(monkeypatch, tmp_path):
+    """冻结前置：v10 的 status 闭集对齐 v6/v8/v9，但其它键仍严格相等。"""
+    import hashlib
+
+    from vrc_agent.live_navigation import stability
+
+    policy, _ = load_policy("v10")
+    policy = copy.deepcopy(policy)
+    policy["status"] = "FROZEN"
+    for p in Path("src/vrc_agent/live_navigation").glob("stability_v*.*"):
+        (tmp_path / p.name).write_bytes(p.read_bytes())
+    raw = json.dumps(policy).encode()
+    (tmp_path / "stability_v10.json").write_bytes(raw)
+    (tmp_path / "stability_v10.sha256").write_text(hashlib.sha256(raw).hexdigest())
+    monkeypatch.setattr(stability, "files", lambda _: tmp_path)
+    frozen, digest = stability.load_policy("v10")
+    assert frozen["status"] == "FROZEN" and digest == hashlib.sha256(raw).hexdigest()
+    # v9 已冻结，故冻结后的 v10 与它的差异只剩版本名与 path_scan 块。
+    v9, _ = load_policy("v9")
+    differences = {k for k in set(v9) | set(frozen) if v9.get(k) != frozen.get(k)}
+    assert differences == {"version", "path_scan"}
+    assert frozen["status"] == v9["status"] == "FROZEN"
+    # 闭集外取值仍拒绝，避免把“FROZEN 可加载”误读为“任意 status 可加载”。
+    policy["status"] = "FROZEN_APPROVED"
+    raw = json.dumps(policy).encode()
+    (tmp_path / "stability_v10.json").write_bytes(raw)
+    (tmp_path / "stability_v10.sha256").write_text(hashlib.sha256(raw).hexdigest())
     with pytest.raises(ValueError, match="v10"):
         stability.load_policy("v10")
