@@ -4,12 +4,12 @@
 
 ## 1. 冻结内容
 
-| 项 | 冻结前 | 冻结后 |
-| --- | --- | --- |
-| `vrchat_home_live_v3.json` `status` | `REQUIRES_FIELD_CALIBRATION` | `FROZEN` |
-| `version` | `vrchat-home-live-v3` | 不变 |
-| 语义摘要（规范化模型摘要） | `3e7b4566cfabcb6d2527c5d221b4e9d0427b542adb8d6183bc13cf90d3d9885f` | `1da677140aad5a76920a7ad5cd88a5ffc1899300062cb852392b9483067f19f7` |
-| 文件字节 SHA256 | `1ab60148…bb0b33` | `48fc107954c7e76a71e7f40f947ed21989330239c332dfbb3eaef937a041171b` |
+| 项                                  | 冻结前                                                             | 冻结后                                                             |
+| ----------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `vrchat_home_live_v3.json` `status` | `REQUIRES_FIELD_CALIBRATION`                                       | `FROZEN`                                                           |
+| `version`                           | `vrchat-home-live-v3`                                              | 不变                                                               |
+| 语义摘要（规范化模型摘要）          | `3e7b4566cfabcb6d2527c5d221b4e9d0427b542adb8d6183bc13cf90d3d9885f` | `1da677140aad5a76920a7ad5cd88a5ffc1899300062cb852392b9483067f19f7` |
+| 文件字节 SHA256                     | `1ab60148…bb0b33`                                                  | `48fc107954c7e76a71e7f40f947ed21989330239c332dfbb3eaef937a041171b` |
 
 - sidecar `vrchat_home_live_v3.sha256` 已按**规范化模型摘要**重算（`json.dumps(model_dump, sort_keys, separators)` 的 SHA-256 + CRLF），与世界 loader 的校验口径一致；**不是**原始文件字节哈希。第 110/111 节已记录二者不可混称。
 - 门槛取值不变：G1/G3/G5 = 0.85，G2/G4 = **0.7**；clearance 实体的 0.9 与几何不变。
