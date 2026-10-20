@@ -1665,3 +1665,14 @@ No broken requirements found.
 ```
 
 exit 0，world=`vrchat-home-live-v3`/FROZEN；完整输出`.runtime/verify/t08_v10_plan.log`。现场配置仍`stable-inference-v9`/dry-run，未切v10。`git diff --check`通过；22文件SHA256清单`.runtime/verify/t08_v10_manifest.json`，不变项证据同前缀`invariants.json`。本节是实现方交付，未宣称独立复核或实机验收；生产v10预算30s兜底问题仍须另案处理，不以门禁全绿覆盖该阻断。
+
+### 115.3 现场会话交接前核对（2026-10-20，非复核）
+
+- 负责人现场会话，只做交付核对与门禁复跑，不改产品代码。提交 `336fb50`（22文件：16改6新），已推送 `origin/main`。
+- 范围与不变项：`git status` 显示改动仅第115节所列22文件，**未出现任何 v1–v9 策略json/sidecar、世界文件/sidecar、`configs/`、`control/` 条目**，即由 git 自身证明这些文件未动；v9 仍 FROZEN/`c9fb45ee…e700a2`，world v3 仍 FROZEN/`1da67714…19f7`。
+- 共用代码：`stability_v9.py` 仅 3 行变化（版本白名单加入 `local-rgb-stability-v10-candidate`，与 v9 共用同一逐框 ppm 比较器）；`stable_runtime.py`/`runtime.py` 只把 v10 加进既有版本集合与 schema 映射，未改数值。
+- v10 策略：`local-rgb-stability-v10-candidate`，`status=REQUIRES_FIELD_CALIBRATION`，文件 SHA256 `437849cfee57cc157cc01cb76a0bc56eb8ab5eade7510a31bff47d4a5c14bff3`，sidecar 一致；`path_scan` 全部键为显式值（无隐式默认）。入口与运行时在资源/采集/推理/动作前拒绝 live。
+- `path_scan.py` 抽读：`eligible` 要求运动＋`args.forward>0`＋strafe/yaw 均为0＋七谓词全真＋包络＋动作预算＋缺 `forward_clearance`；`denied_streak` 只对新鲜观测 id 递增；触发后替换为纯 `yaw=±1.0/200ms` 并重走 yaw 审计且置 `pending_scan`、清零 `path_waits`；`verify()` 需16项新鲜度否则 `halt_reason="PATH_UNSAFE"`。
+- 门禁（现场会话自跑，虚拟环境）：首轮全量 `2 failed, 1499 passed in 808.16s`，两项失败均为既有偶发 spawn 用例（`test_v2_spawn_report`/`test_v4_spawn_report`，`STALE_OBSERVATION`），隔离复跑**均通过**（v4 一次通过；v2 首次失败后重跑 `1 passed in 14.01s`）；随后完整复跑 **`1501 passed in 872.37s (0:14:32)`，PYTEST_EXIT=0**（日志`.runtime/tmp/v10_pytest2.log`）。`ruff check`=`All checks passed!`、`ruff format --check`=`166 files already formatted`、`pip check`=`No broken requirements found.`、`navigate-live --task G2-1 --world-version v3` 只读计划 exit 0。偶发失败沿用第92节起的既有记录，不是本次 v10 引入。
+- 文档更正：第114节“3/28 几何合格”与本节首条实测（10.7% clearance / 7.1% 几何）不一致，已按实测改为“3/28 有 clearance、其中 2/28 几何合格”，“不采用该提示”的结论不变。
+- 边界：本轮不是 ADR-009 独立复核，也不是实机验收；**冻结前阻断未关闭**——`control/service.py` 的 180s 枚举仍缺 v10，真实 dry-run 控制子进程会回落 30s、schema13 报告会被租约校验拒绝，故 v10 仍为候选、仍拒绝 live，现场仍 v9＋world v3＋dry-run。下一步：DSH 定向复核（含该阻断确认）→ 另案修 `control/` 预算枚举并实进程回归 → 用户决定冻结/切换 → 人在场现场复验。
