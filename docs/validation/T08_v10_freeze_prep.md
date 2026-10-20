@@ -36,9 +36,9 @@
 
 `tests/unit/test_path_scan_v10.py`：
 
-| 用例 | 变化 |
-|---|---|
-| `test_candidate_loader_rejects_mutated_declarations[status]` | 故障值从 `"FROZEN"` 改为 `"CANDIDATE"`（旧的 FROZEN 故障假设已不成立，闭集外的取值仍必须拒绝） |
+| 用例                                                                    | 变化                                                                                                         |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `test_candidate_loader_rejects_mutated_declarations[status]`            | 故障值从 `"FROZEN"` 改为 `"CANDIDATE"`（旧的 FROZEN 故障假设已不成立，闭集外的取值仍必须拒绝）               |
 | `test_frozen_v10_declaration_loads_without_relaxing_other_keys`（新增） | 冻结后的 v10 可加载；与 v9 的差异仍只有 `{version, path_scan}`；`status` 闭集外的 `"FROZEN_APPROVED"` 仍被拒 |
 
 新增用例先写错过一次断言（误以为冻结后与 v9 的差异含 `status`），实测 v9 本身已是 `FROZEN`、差异只有 `{version, path_scan}`，已按实测更正——不是放宽断言，而是更正事实假设。
