@@ -109,15 +109,19 @@ def test_v10_candidate_rejects_before_resources_and_factory_cannot_bypass(monkey
     assert not calls and not client.transport.messages
 
 
-def test_candidate_budget_mapping_remains_explicit_freeze_blocker(tmp_path):
-    # 本任务禁止修改control/。不得用内存core默认180s掩盖生产worker仍兜底30s。
+def test_candidate_budget_mapping_is_wired_to_180s_and_worker_stays_disarmed(tmp_path):
+    # 冻结前阻断（预算枚举漏v10）已按另案授权修复：真实dry-run worker须拿到策略180s，
+    # 不能再靠内存core默认值掩盖生产装配；修复不增加管道能力，进程仍DISARMED且无发送。
     config = AppConfig(navigation_design="stable-inference-v10")
     with ControllerProcess(config, tmp_path) as client:
         status = client.request("status")
         assert status["state"] == "DISARMED"
-        assert status["control_budget"]["task_timeout_ms"] == 30000
+        assert status["control_budget"]["task_timeout_ms"] == 180000
         assert status["control_budget"]["base_ms"] == 30000
         assert status["sent_count"] == 0 and status["recorded_messages"] == []
+        for operation in ("extend", "renew"):
+            with pytest.raises(ValueError):
+                client.request(operation)
 
 
 @pytest.fixture(scope="module")

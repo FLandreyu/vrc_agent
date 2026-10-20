@@ -169,6 +169,7 @@ def _worker(connection, config_json: str, state_path: str, session_id: str) -> N
             "stable-inference-v7",
             "stable-inference-v8",
             "stable-inference-v9",
+            "stable-inference-v10",
         }:
             from vrc_agent.live_navigation.stability import load_policy
 

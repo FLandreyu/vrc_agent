@@ -51,7 +51,15 @@ def test_v9_real_controller_process_budget(v9_worker_budget):
 
 @pytest.mark.parametrize(
     "version,timeout_ms",
-    [("v6", 180000), ("v7", 180000), ("v8", 180000), ("v5", 30000), ("legacy", 30000)],
+    [
+        ("v6", 180000),
+        ("v7", 180000),
+        ("v8", 180000),
+        ("v9", 180000),
+        ("v10", 180000),
+        ("v5", 30000),
+        ("legacy", 30000),
+    ],
 )
 def test_existing_process_budgets_and_30s_fallback_unchanged(tmp_path, version, timeout_ms):
     design = f"stable-inference-{version}" if version != "legacy" else version
