@@ -74,17 +74,17 @@ def assemble_scan(*, acquire=False, fault=None, version="v10"):
     return runtime, client, calls
 
 
-def test_v10_candidate_rejects_before_resources_and_factory_cannot_bypass(monkeypatch, tmp_path):
+def test_frozen_v10_live_needs_consents_and_unfrozen_still_refuses(monkeypatch, tmp_path):
     config = AppConfig(
         navigation_design="stable-inference-v10",
         navigation_motion_profile="field",
-        control={"observation_max_age_ms": 4000},
+        control={"observation_max_age_ms": 4000, "lease_extension_max": 5},
         perception={"provider": "openai_compat", "model": "memory", "budget_usd": 1.0},
     )
     monkeypatch.setattr(session, "load_config", lambda _: config)
 
     def forbidden(*args, **kwargs):
-        pytest.fail("candidate created a resource")
+        pytest.fail("refused live run created a resource")
 
     for key in ("build_provider", "Perception", "ControllerProcess", "live_capture"):
         monkeypatch.setattr(session, key, forbidden)
@@ -98,15 +98,44 @@ def test_v10_candidate_rejects_before_resources_and_factory_cannot_bypass(monkey
         send_images=True,
         state_dir=str(tmp_path),
     )
+    # 冻结不替代现场同意：标定/付费/图像三项缺一，仍在资源前拒绝。
+    for name in ("confirm_calibration", "allow_paid", "send_images"):
+        withheld = SimpleNamespace(**{**vars(args), name: False})
+        with pytest.raises(ValueError, match="paid and image consent"):
+            asyncio.run(session.navigation_entry(withheld))
+    policy, digest = session.load_policy("v10")
+    assert policy["status"] == "FROZEN"
+    # 未冻结（候选）策略仍在资源前拒绝 live：冻结只改状态，不放宽该门禁。
+    monkeypatch.setattr(
+        session,
+        "load_policy",
+        lambda _: ({**policy, "status": "REQUIRES_FIELD_CALIBRATION"}, digest),
+    )
     with pytest.raises(ValueError, match="field calibration"):
         asyncio.run(session.navigation_entry(args))
+    monkeypatch.setattr(session, "load_policy", lambda _: (policy, digest))
+
+    def sentinel(*args, **kwargs):
+        raise RuntimeError("frozen policy gate passed")
+
+    for key in ("build_provider", "Perception", "ControllerProcess", "live_capture"):
+        monkeypatch.setattr(session, key, sentinel)
+    with pytest.raises(RuntimeError, match="frozen policy gate passed"):
+        asyncio.run(session.navigation_entry(args))
+
     runtime, client, calls = assemble_scan()
     with pytest.raises(ValueError, match="v10 runtime"):
         SupervisedNavigation(client, forbidden, forbidden, runtime.world, runtime.task)
+    # 运行时自带的候选拒绝仍存在：改状态为候选后 live 构造仍拒绝。
+    monkeypatch.setattr(
+        "vrc_agent.live_navigation.stable_runtime.load_policy",
+        lambda _: ({**policy, "status": "REQUIRES_FIELD_CALIBRATION"}, digest),
+    )
     client.config = client.config.model_copy(update={"mode": "live"})
     with pytest.raises(ValueError, match="candidate"):
         StableNavigationV10(client, forbidden, forbidden, runtime.world, runtime.task)
     assert not calls and not client.transport.messages
+    assert stable_navigation_class("v10") is StableNavigationV10
 
 
 def test_candidate_budget_mapping_is_wired_to_180s_and_worker_stays_disarmed(tmp_path):
@@ -195,7 +224,6 @@ def test_four_scans_then_original_path_unsafe_limit_and_v9_unchanged():
         "missing_feedback",
         "schema12",
         "schema_float",
-        "live",
         "missing_scan",
         "forged_waits",
         "stale_source",
@@ -227,8 +255,6 @@ def test_schema13_forgery_and_missing_scan_evidence_rejected(acquired_report, fa
         report["events"] = [e for e in report["events"] if e["event"] != "path_scan_observed"]
     elif fault in {"schema12", "schema_float"}:
         report["schema_version"] = 12 if fault == "schema12" else 13.0
-    elif fault == "live":
-        report["mode"] = "live"
     elif fault == "missing_scan":
         del decision["audit"]["path_scan"]
     elif fault == "forged_waits":
@@ -257,6 +283,23 @@ def test_schema13_forgery_and_missing_scan_evidence_rejected(acquired_report, fa
             if proof.get("validates_observation_id") == key:
                 del proof["validates_observation_id"]
     with pytest.raises(ValueError):
+        validate_stability_report(report)
+
+
+def test_unfrozen_v10_policy_still_cannot_claim_live(acquired_report, monkeypatch):
+    """冻结后 live 报告本身合法；但候选态声称 live 仍必须拒（不得靠冻结放宽）。"""
+    report = copy.deepcopy(acquired_report)
+    report.update(mode="live", sends_live_input=True)
+    policy, digest = session.load_policy("v10")
+    assert policy["status"] == "FROZEN"
+    validate_stability_report(report)  # 冻结策略：live 声明自洽，不再被拒。
+    candidate = {**policy, "status": "REQUIRES_FIELD_CALIBRATION"}
+    report["stability_policy"] = {"digest": digest, **candidate}
+    monkeypatch.setattr(
+        "vrc_agent.live_navigation.stability_report.load_policy",
+        lambda _version: (candidate, digest),
+    )
+    with pytest.raises(ValueError, match="cannot claim live"):
         validate_stability_report(report)
 
 

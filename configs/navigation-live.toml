@@ -10,7 +10,7 @@
 # 第64/66节改为JPEG q85上传，8000ms预算不变；生产同款时延须现场复测。
 
 mode = "dry-run"
-navigation_design = "stable-inference-v9"
+navigation_design = "stable-inference-v10"
 navigation_motion_profile = "field"
 provider = "fake"
 

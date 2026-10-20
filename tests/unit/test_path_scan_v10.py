@@ -1,6 +1,7 @@
 """扫描的触发、有限次数、取证门槛；纯内存数据，无采集/模型/输入。"""
 
 import copy
+import hashlib
 import json
 from pathlib import Path
 
@@ -11,6 +12,9 @@ from vrc_agent.contracts import ActionProposal, ActionRequest, ActionResult
 from vrc_agent.live_navigation.path_scan import PATH_SCAN, PathScanSkill
 from vrc_agent.live_navigation.stability import load_policy
 from vrc_agent.live_navigation.world import load_live_world
+
+# 冻结后摘要；候选期摘要 437849cf…bff3 为历史。
+DIGEST = "a1348cc3f8b222777b8b214b56ab7bf58d4ea4f837a7dead8f0361832881cbcb"
 
 
 def skill():
@@ -75,15 +79,22 @@ def complete(agent, proposal, before, index, *, clearance=False, stale=False):
 
 def test_v10_only_adds_explicit_scan_and_candidate_declarations():
     v9, old_digest = load_policy("v9")
-    v10, _ = load_policy("v10")
+    v10, digest = load_policy("v10")
     assert old_digest == "c9fb45ee3295766e62f3ceda2c4a744aab9dd45e580d36385168a59f97e700a2"
     assert "path_scan" not in v9 and v9["status"] == "FROZEN"
     assert v10 == {
         **v9,
         "version": "local-rgb-stability-v10-candidate",
-        "status": "REQUIRES_FIELD_CALIBRATION",
+        "status": "FROZEN",
         "path_scan": PATH_SCAN,
     }
+    # 冻结只改 status 一行；摘要因此变化，旧候选摘要见 TASKS 第115/118节。
+    assert digest == DIGEST
+    raw = Path("src/vrc_agent/live_navigation/stability_v10.json").read_bytes()
+    assert digest == hashlib.sha256(raw).hexdigest()
+    path = Path("src/vrc_agent/live_navigation/stability_v10.sha256")
+    assert path.read_bytes() == (digest + "\r\n").encode()
+    assert raw.count(b'"status": "FROZEN"') == 1
     for profile in v10["motion_profiles"].values():
         assert PATH_SCAN["yaw_step"] == profile["yaw"] == 1.0
         assert PATH_SCAN["duration_ms"] == profile["yaw_ms"] == 200
@@ -211,29 +222,34 @@ def test_candidate_loader_rejects_mutated_declarations(monkeypatch, tmp_path, fa
         stability.load_policy("v10")
 
 
-def test_frozen_v10_declaration_loads_without_relaxing_other_keys(monkeypatch, tmp_path):
-    """冻结前置：v10 的 status 闭集对齐 v6/v8/v9，但其它键仍严格相等。"""
-    import hashlib
-
+def test_status_closure_accepts_both_declared_values_without_relaxing_keys(monkeypatch, tmp_path):
+    """闭集双向：已冻结的 v10 与候选副本都可加载，但其它键仍必须严格相等。"""
     from vrc_agent.live_navigation import stability
 
     policy, _ = load_policy("v10")
-    policy = copy.deepcopy(policy)
-    policy["status"] = "FROZEN"
+    assert policy["status"] == "FROZEN"
     for p in Path("src/vrc_agent/live_navigation").glob("stability_v*.*"):
         (tmp_path / p.name).write_bytes(p.read_bytes())
-    raw = json.dumps(policy).encode()
-    (tmp_path / "stability_v10.json").write_bytes(raw)
-    (tmp_path / "stability_v10.sha256").write_text(hashlib.sha256(raw).hexdigest())
     monkeypatch.setattr(stability, "files", lambda _: tmp_path)
-    frozen, digest = stability.load_policy("v10")
-    assert frozen["status"] == "FROZEN" and digest == hashlib.sha256(raw).hexdigest()
-    # v9 已冻结，故冻结后的 v10 与它的差异只剩版本名与 path_scan 块。
-    v9, _ = load_policy("v9")
-    differences = {k for k in set(v9) | set(frozen) if v9.get(k) != frozen.get(k)}
-    assert differences == {"version", "path_scan"}
-    assert frozen["status"] == v9["status"] == "FROZEN"
-    # 闭集外取值仍拒绝，避免把“FROZEN 可加载”误读为“任意 status 可加载”。
+
+    for status in ("FROZEN", "REQUIRES_FIELD_CALIBRATION"):
+        candidate = copy.deepcopy(policy)
+        candidate["status"] = status
+        raw = json.dumps(candidate).encode()
+        (tmp_path / "stability_v10.json").write_bytes(raw)
+        (tmp_path / "stability_v10.sha256").write_text(hashlib.sha256(raw).hexdigest())
+        loaded, digest = stability.load_policy("v10")
+        assert loaded["status"] == status and digest == hashlib.sha256(raw).hexdigest()
+        # 冻结不是放宽：除版本名/状态/path_scan 外，判据必须与 v9 主体逐键相等。
+        # v9 本身已 FROZEN，故 FROZEN 态下 status 不构成差异。
+        v9, _ = load_policy("v9")
+        differences = {k for k in set(v9) | set(loaded) if v9.get(k) != loaded.get(k)}
+        expected = {"version", "path_scan"}
+        if status != v9["status"]:
+            expected = expected | {"status"}
+        assert differences == expected
+
+    # 闭集外取值仍拒绝，避免把“两态可加载”误读为“任意 status 可加载”。
     policy["status"] = "FROZEN_APPROVED"
     raw = json.dumps(policy).encode()
     (tmp_path / "stability_v10.json").write_bytes(raw)
