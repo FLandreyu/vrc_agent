@@ -60,6 +60,7 @@ def action_freshness_ms(config, policy=None):
             "local-rgb-stability-v7-candidate",
             "local-rgb-stability-v8-candidate",
             "local-rgb-stability-v9-candidate",
+            "local-rgb-stability-v10-candidate",
         }
         else 1500
     )

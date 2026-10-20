@@ -76,8 +76,9 @@ def test_report_version_mapping_and_config_literal():
         "v7": 10,
         "v8": 11,
         "v9": 12,
+        "v10": 13,
     }
-    assert WARMUP_VERSIONS == {"v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9"}
+    assert WARMUP_VERSIONS == {"v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10"}
     config = AppConfig(navigation_design="stable-inference-v3")
     assert config.navigation_design == "stable-inference-v3"
     assert AppConfig(navigation_design="stable-inference-v4").navigation_design == (

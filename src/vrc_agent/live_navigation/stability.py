@@ -12,7 +12,7 @@ from vrc_agent.capture.frames import Frame
 
 
 def load_policy(version="v1"):
-    if version not in {"v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9"}:
+    if version not in {"v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10"}:
         raise ValueError("unknown stability policy version")
     root = files("vrc_agent.live_navigation")
     raw = root.joinpath(f"stability_{version}.json").read_bytes()
@@ -21,6 +21,19 @@ def load_policy(version="v1"):
     if digest != expected:
         raise ValueError("stability policy digest mismatch")
     policy = json.loads(raw)
+    if version == "v10":
+        from .path_scan import PATH_SCAN
+
+        expected_v10 = {
+            **load_policy("v9")[0],
+            "version": "local-rgb-stability-v10-candidate",
+            "status": "REQUIRES_FIELD_CALIBRATION",
+            "path_scan": PATH_SCAN,
+        }
+        if json.dumps(policy, sort_keys=True, allow_nan=False) != json.dumps(
+            expected_v10, sort_keys=True
+        ):
+            raise ValueError("invalid v10 path scan candidate declaration")
     if version == "v9":
         from .stability_v9 import TOLERANCE
 
@@ -104,7 +117,10 @@ def masked_rgb(frame: Frame, policy: dict) -> bytes:
 
 
 def compare(reference: Frame, current: Frame, policy: dict, entities=()) -> dict:
-    if policy.get("version") == "local-rgb-stability-v9-candidate":
+    if policy.get("version") in {
+        "local-rgb-stability-v9-candidate",
+        "local-rgb-stability-v10-candidate",
+    }:
         from .stability_v9 import compare_v9
 
         return compare_v9(reference, current, policy, entities)

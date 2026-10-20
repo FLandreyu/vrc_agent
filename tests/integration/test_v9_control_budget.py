@@ -82,7 +82,7 @@ def test_v9_process_preserves_custom_extension_parameters(tmp_path):
 
 def test_unknown_design_not_enabled_by_budget_fix():
     with pytest.raises(ValueError, match="navigation_design"):
-        AppConfig(navigation_design="stable-inference-v10")
+        AppConfig(navigation_design="stable-inference-v11")
 
 
 @pytest.mark.parametrize("extend", [False, True])

@@ -12,6 +12,7 @@ def validate_attempts(report, policy):
                 "local-rgb-stability-v7-candidate",
                 "local-rgb-stability-v8-candidate",
                 "local-rgb-stability-v9-candidate",
+                "local-rgb-stability-v10-candidate",
             }
             or any("attempt" in p for p in report.get("stability_prechecks", []))
             or any(e.get("event") == "stability_attempt" for e in report["events"])

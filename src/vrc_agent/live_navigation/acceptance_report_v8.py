@@ -18,7 +18,7 @@ def same(actual, expected):
 
 def validate_acceptance(report, *, policy_version="v8", schema_version=11):
     # v9仅换像素判据，采信语义仍为target-path-v8；schema/策略配对不可任意指定。
-    if {"v8": 11, "v9": 12}.get(policy_version) != schema_version:
+    if {"v8": 11, "v9": 12, "v10": 13}.get(policy_version) != schema_version:
         raise ValueError("invalid acceptance policy/schema pairing")
     try:
         _validate_acceptance(report, policy_version, schema_version)
@@ -41,7 +41,12 @@ def _validate_acceptance(report, policy_version, schema_version):
     }[report["world_version"]]
     world = load_live_world(version)
     same(report["suite_digest"], world.digest())
-    skill = AcceptanceSkillV8(
+    skill_type = AcceptanceSkillV8
+    if policy_version == "v10":
+        from .path_scan import PathScanSkill
+
+        skill_type = PathScanSkill
+    skill = skill_type(
         world.landmark(world.task(report["task_id"]).group),
         policy,
         profile=report["run_parameters"]["motion_profile"],
@@ -53,6 +58,7 @@ def _validate_acceptance(report, policy_version, schema_version):
     if len(action_index) != len(actions):
         raise ValueError("duplicate v8 action")
     decisions, feedback = {}, set()
+    scan_events = []
     last_capture = -1
     for metadata in report["acceptance_observations"]:
         same(
@@ -153,13 +159,28 @@ def _validate_acceptance(report, policy_version, schema_version):
             scene = scenes[event["observation_id"]]
             requested = ActionProposal.model_validate_json(json.dumps(event["requested"]))
             dispatched = ActionProposal.model_validate_json(json.dumps(event["dispatched"]))
-            audit = skill.audit(scene, requested, index)
+            if policy_version == "v10":
+                expected = skill.dispatch(scene, requested, index)
+                audit = skill.last_decision["audit"]
+                if skill.halt_reason and index <= len(actions):
+                    raise ValueError("halted scan decision cannot send an action")
+                if audit["path_scan"]["triggered"]:
+                    scan_events.append(
+                        {
+                            "event": "path_scan_triggered",
+                            "at_ns": event["at_ns"],
+                            "decision_index": index,
+                            **audit["path_scan"],
+                        }
+                    )
+            else:
+                audit = skill.audit(scene, requested, index)
+                expected = (
+                    requested
+                    if audit["proposal_permitted"]
+                    else ActionProposal(kind="wait", args={"duration_ms": 100})
+                )
             same(event["audit"], audit)
-            expected = (
-                requested
-                if audit["proposal_permitted"]
-                else ActionProposal(kind="wait", args={"duration_ms": 100})
-            )
             same(dispatched.model_dump(mode="json"), expected.model_dump(mode="json"))
             decisions[index] = event
             if index <= len(actions):
@@ -185,13 +206,46 @@ def _validate_acceptance(report, policy_version, schema_version):
             observation = skill.observations[after_id]
             skill.decision_count = index + 1
             skill.last_skill = (
-                "approach"
+                "scan"
+                if policy_version == "v10"
+                and decisions[index + 1]["audit"]["path_scan"]["triggered"]
+                else "approach"
                 if action.kind == "motion" and action.args.forward
                 else "turn"
                 if action.kind == "motion" and action.args.yaw
                 else "wait"
             )
             verified = skill.verify(action, result, before, observation, after)
+            if policy_version == "v10":
+                for key, value in skill.status().items():
+                    if key != "skill":  # confirm/recover_wait是旧规划器标签，不参与验证判据。
+                        same(event[key], value)
+                if "path_scan" in skill.last_evidence:
+                    same(event["skill"], "scan")
+                    scan_events.append(
+                        {
+                            "event": "path_scan_observed",
+                            "at_ns": event["at_ns"],
+                            **skill.last_evidence["path_scan"],
+                        }
+                    )
+                    # 新派生帧本身不足以证明转头后的视野：推理源也必须晚于yaw完成。
+                    derived = next(
+                        e
+                        for e in report["events"]
+                        if e.get("event") == "observation" and e["observation_id"] == after_id
+                    )
+                    source = next(
+                        e
+                        for e in report["events"]
+                        if e.get("event") == "inference_source"
+                        and e["observation_id"] == derived["derived_from"]
+                    )
+                    if (
+                        result.finished_at_ns is None
+                        or source["captured_at_ns"] <= result.finished_at_ns
+                    ):
+                        raise ValueError("scan reused pre-motion inference source")
             same(event["evidence"], skill.last_evidence)
             same(result.verification, verified.verification)
             same(list(result.evidence_observation_ids), list(verified.evidence_observation_ids))
@@ -200,6 +254,15 @@ def _validate_acceptance(report, policy_version, schema_version):
             feedback.add(index)
     if len(decisions) < len(actions):
         raise ValueError("missing v8 decisions")
+    if policy_version == "v10":
+        same(
+            [
+                e
+                for e in report["events"]
+                if e["event"] in {"path_scan_triggered", "path_scan_observed"}
+            ],
+            scan_events,
+        )
     for index, result in enumerate(results):
         if (
             len(result["evidence_observation_ids"]) > 1 or result["verification"] == "SUCCESS"

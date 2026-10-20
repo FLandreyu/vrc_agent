@@ -29,7 +29,8 @@ REGION_KEYS = SHAPE_KEYS | {
 def allowed_pixels(visible, policy):
     declaration = policy.get("protected_tolerance")
     if (
-        policy.get("version") != "local-rgb-stability-v9-candidate"
+        policy.get("version")
+        not in {"local-rgb-stability-v9-candidate", "local-rgb-stability-v10-candidate"}
         or json.dumps(declaration, sort_keys=True, allow_nan=False)
         != json.dumps(TOLERANCE, sort_keys=True)
         or policy.get("protected_mask_policy") != "exclude_masked"

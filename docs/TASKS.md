@@ -1615,7 +1615,7 @@ exit 0；完整输出`.runtime/verify/t08_world_v3_plan_v2.log`。附加显式`-
 - **障碍/遮挡帧（`obstacle`+`occluded`，各 28 次）**：hazards **0.607→0.607（完全不变）**、uncertainties 1.0→1.0；clearance 0%→**10.7%**（几何 7.1%）；目标在这批帧中不出现（`goal_present_rate=0`），故无法评估目标置信度影响。
 - 判读：
   1. **危险信号没有被提示压制**——障碍帧 hazards 完全不变，说明开阔帧那 21% 的下降来自误报消除，而不是漏报真实危险。这一点通过。
-  2. **但出现了新的误报 clearance**：在带障碍/遮挡的帧上，加提示后有 3/28 次给出几何合格的 `forward_clearance`。由于运行时 hazards 只记录不否决，这类误报 clearance 会直接许可前进——正是 clearance 本想防的情形（第95节 N4 同源风险）。
+  2. **但出现了新的误报 clearance**：在带障碍/遮挡的帧上，加提示后有 3/28 次给出 `forward_clearance`，其中 2/28 几何合格（10.7% / 7.1%；此处先前误写为“3/28 几何合格”，已按本节首条实测数据更正，结论不变）。由于运行时 hazards 只记录不否决，这类误报 clearance 会直接许可前进——正是 clearance 本想防的情形（第95节 N4 同源风险）。
   3. **G4 完全无效**：远距位姿下提示改变不了模型行为，主卡点仍在。
 - 结论：**不采用该提示路线**。它把 G2-2 的 clearance 拉满，却以 10.7% 的障碍帧误报率为代价，且不解决 G4；按“不得放宽安全判据”的口径不可接受。
 - 可行方向（未实施，需用户选择与独立提案/复核）：
@@ -1623,3 +1623,45 @@ exit 0；完整输出`.runtime/verify/t08_world_v3_plan_v2.log`。附加显式`-
   2. 重新考虑模型能力（用户此前明确不换模型，仅记录）。
   3. 接受 G2-2/G4 在现有模型下难以起步，20 次批次只用能工作的位姿（G2-1 已证到达；G1/G3/G5 未测）。
 - 相关前序：第108节置信度提示路线已否决；第113节记录世界 v3 后卡点转移。本轮未改任何产品代码、策略、配置、世界或提示。
+
+## 115. T08 缺clearance时有界原地扫描 v10 候选（2026-10-20）
+
+- 状态：候选实现与离线门禁已交付，待独立复核；冻结前预算装配阻断未关闭，T08仍IN_PROGRESS。负责人：Codex。依据第113/114节，新增候选`stable-inference-v10`，schema13；不启动live/ARM/付费模型/真实输入、不读密钥，不切现场配置，不冻结。GraphFlow技能已读取，但当前无可调用工具，按项目回退直接核对，未伪造context/plan/index。
+- 新策略`stability_v10.json/.sha256`，version=`local-rgb-stability-v10-candidate`、status=`REQUIRES_FIELD_CALIBRATION`，文件SHA256=`437849cfee57cc157cc01cb76a0bc56eb8ab5eade7510a31bff47d4a5c14bff3`。相对v9仅改version/status、增加完整显式`path_scan`块；其它键逐项相同。当前loader严格候选声明，不预先开放FROZEN；入口及运行时构造均在资源/采集/推理/动作前拒绝live。
+- 行为：目标七谓词全真、合法纯前进唯一失败项为forward_clearance，连续3个不同观测拒绝后才扫描；纯yaw±1.0/200ms取自原包络，重新走原yaw审计；方向+/-交替，每任务最多4次，每次重置path_waits及连续拒绝计数，不重置任务扫描额度。扫描后严格重新采集/预热/推理/两检查点；不跨动作复用clearance。四次耗尽后恢复原path_wait_limit=3，持续拒绝则PATH_UNSAFE；动作数/任务时限/租约/急停可更早终止。
+- 报告：`acceptance_decision.audit.path_scan`登记合格条件、连续计数、触发原因、序号/方向/次数/耗尽、yaw审计；`navigation_feedback.evidence.path_scan`登记新观测及clearance_acquired；事件`path_scan_triggered`/`path_scan_observed`。校验器按观测/请求/动作/结果重放有限状态机、重算字段并核对事件，还检查扫描后推理源晚于yaw完成；schema13与旧schema隔离。未新增控制码/能力。原v8识别、路径及到达实现不改，像素证据仅将v10明确路由到v9同一比较器。
+- 定向回归：`59 passed in 73.24s (0:01:13)`（`.runtime/verify/t08_v10_focused.log`）。包括识别失败/clearance已有/recovery缺证/混轴/超包络/动作预算/重复观测不扫描；连续计数中断；恰好3次、+/-交替、4次耗尽；yaw拒绝；扫描后新观测与分离平移动作；旧v9无扫描行为；报告伪造/缺字段/缺事件/schema/旧证据/混轴拒绝；急停与最终租约到期停止且归零。
+- **冻结前装配阻断（本轮明确不修control/）**：真实dry-run控制子进程（始终DISARMED，无发送）确认v10尚不在`control/service.py`180s枚举，仍走30s兜底。策略/运行时仍180s、报告校验不放宽；内存闭环直接用既有180s core构造预算，不代表生产装配通过。冻结前必须另案授权补枚举/装配与实进程回归、独立复核；仅改status/sidecar不能启用v10。当前live硬拒绝，v9生产180s装配和30s基础租约不受影响。
+- 风险/提案：`docs/validation/T08_path_scan_v10.md`说明有限换视角不保证clearance或物理安全；+/-可能在两个角度往返、推理成本/租约仍是限制、扫描可能丢失目标。第114节“3/28几何合格”与首条10.7% clearance/7.1%几何不一致，已由现场会话按实测改为“3/28有clearance、其中2/28几何合格”，不改变不采用该提示的结论。待独立复核、另案处理预算装配、用户决定冻结与人在场现场复验；不宣称实机可用，T08仍IN_PROGRESS。
+- 改动清单（22文件）：`.gitattributes`、`AGENTS.md`、本台账与提案；`src/vrc_agent/config.py`；`live_navigation/`的`stability.py`、`stability_v9.py`（仅显式允许v10版本共用相同公式）、`stable_runtime.py`、`runtime.py`、`session.py`、`parameters.py`、`attempts.py`、`stability_report.py`、`acceptance_report_v8.py`；新增`path_scan.py`及v10 json/sidecar；新增unit/integration两测试；更新`test_stability_v3_review_regressions.py`工厂闭集/未知v11、`test_stability_v3.py` schema13/预热版本映射与`test_v9_control_budget.py`未知v11断言。control/零差异。
+- 不变项：开工116个既有生产/config文件SHA256对照，只有上述10个既有生产源码变化；v1–v9 json/sidecar共18个、所有世界文件/sidecar、`acceptance_v8.py`原七谓词/clearance/到达、`skill.py`与提示、control/及configs/逐字节未改。v9仍FROZEN/`c9fb45ee…e700a2`，world v3仍FROZEN/`1da67714…19f7`；全局5%/Δ2/逐框100ppm/遮罩、4000ms/180s/40步/3attempt、预热2对、包络、30s租约/急停/epoch/TTL/归零不变。证据`.runtime/verify/t08_v10_invariants.json`，现场仍v9＋world v3＋dry-run。
+- 验证过程保留：首轮全量`1 failed, 1500 passed in 535.36s (0:08:55)`，唯一失败为旧`test_stability_v3.py`写死的schema/预热映射未纳入v10；仅同步`v10:13`及预热集合后，该用例`1 passed in 0.31s`，随后重跑完整门禁。首轮日志保留为`.runtime/verify/t08_v10_pytest_initial.log`，没有覆盖失败证据或放宽断言。
+
+### 115.1 四项门禁原始输出
+
+均使用项目虚拟环境，exit 0。完整日志`.runtime/verify/t08_v10_{pytest,ruff_check,ruff_format,pip_check}.log`。
+
+```text
+.venv/Scripts/python.exe -m pytest -q
+1501 passed in 551.89s (0:09:11)
+
+.venv/Scripts/python.exe -m ruff check src tests
+All checks passed!
+
+.venv/Scripts/python.exe -m ruff format --check src tests
+166 files already formatted
+
+.venv/Scripts/python.exe -m pip check
+No broken requirements found.
+```
+
+### 115.2 默认只读计划与交付边界
+
+```text
+.venv/Scripts/python.exe -m vrc_agent navigate-live --task G2-2 --config configs/navigation-live.toml --world-version v3
+"mode": "plan-only"
+"sends_live_input": false
+"suite_digest": "1da677140aad5a76920a7ad5cd88a5ffc1899300062cb852392b9483067f19f7"
+```
+
+exit 0，world=`vrchat-home-live-v3`/FROZEN；完整输出`.runtime/verify/t08_v10_plan.log`。现场配置仍`stable-inference-v9`/dry-run，未切v10。`git diff --check`通过；22文件SHA256清单`.runtime/verify/t08_v10_manifest.json`，不变项证据同前缀`invariants.json`。本节是实现方交付，未宣称独立复核或实机验收；生产v10预算30s兜底问题仍须另案处理，不以门禁全绿覆盖该阻断。

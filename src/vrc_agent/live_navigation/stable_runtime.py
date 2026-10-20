@@ -40,7 +40,7 @@ class StableNavigation(SupervisedNavigation):
         self.inference_ms = self.policy["inference_ms"]
         self.task_timeout_s = self.policy["task_timeout_s"]
         self.action_freshness_ms = action_freshness_ms(self.client.config, self.policy)
-        if policy_version in {"v6", "v7", "v8", "v9"}:
+        if policy_version in {"v6", "v7", "v8", "v9", "v10"}:
             self.max_actions = self.policy["max_actions"]
         self.reference = None
         self.proofs = []
@@ -119,7 +119,7 @@ class StableNavigation(SupervisedNavigation):
             derived_from=proof["reference_observation_id"],
             **(
                 {"scene_generated_at_ns": scene.generated_at_ns}
-                if self.policy_version in {"v8", "v9"}
+                if self.policy_version in {"v8", "v9", "v10"}
                 else {}
             ),
         )
@@ -209,7 +209,7 @@ class StableNavigation(SupervisedNavigation):
                 **self.source_audit(evidence),
                 **(
                     {"scene_generated_at_ns": source_scene.generated_at_ns}
-                    if self.policy_version in {"v8", "v9"}
+                    if self.policy_version in {"v8", "v9", "v10"}
                     else {}
                 ),
             )
@@ -256,10 +256,11 @@ class StableNavigation(SupervisedNavigation):
             "v7": 10,
             "v8": 11,
             "v9": 12,
+            "v10": 13,
         }[self.policy_version]
         report["stability_policy"] = {"digest": self.policy_digest, **self.policy}
         report["stability_proofs"] = self.proofs
-        if self.policy_version in {"v6", "v7", "v8", "v9"}:
+        if self.policy_version in {"v6", "v7", "v8", "v9", "v10"}:
             report["run_parameters"] = {
                 "motion_profile": self.client.config.navigation_motion_profile,
                 "motion_envelope": asdict(self.motion_envelope),
@@ -619,6 +620,41 @@ class StableNavigationV9(StableNavigationV8):
         return report
 
 
+class StableNavigationV10(StableNavigationV9):
+    POLICY_VERSION = "v10"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        from .path_scan import PathScanSkill
+
+        self.skill = PathScanSkill(
+            self.world.landmark(self.task.group),
+            self.policy,
+            profile=self.client.config.navigation_motion_profile,
+        )
+
+    def event(self, name, **fields):
+        super().event(name, **fields)
+        if name == "acceptance_decision" and fields["audit"]["path_scan"]["triggered"]:
+            super().event(
+                "path_scan_triggered",
+                at_ns=self.events[-1]["at_ns"],
+                decision_index=fields["decision_index"],
+                **fields["audit"]["path_scan"],
+            )
+        elif name == "navigation_feedback" and "path_scan" in fields["evidence"]:
+            super().event(
+                "path_scan_observed",
+                at_ns=self.events[-1]["at_ns"],
+                **fields["evidence"]["path_scan"],
+            )
+
+    async def run(self):
+        report = await super().run()
+        report["schema_version"] = 13
+        return report
+
+
 STABLE_NAVIGATION_CLASSES = {
     "v1": StableNavigation,
     "v2": StableNavigationV2,
@@ -629,6 +665,7 @@ STABLE_NAVIGATION_CLASSES = {
     "v7": StableNavigationV7,
     "v8": StableNavigationV8,
     "v9": StableNavigationV9,
+    "v10": StableNavigationV10,
 }
 
 

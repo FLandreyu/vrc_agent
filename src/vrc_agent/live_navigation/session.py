@@ -78,6 +78,7 @@ async def navigation_entry(args):
         "stable-inference-v7": "v7",
         "stable-inference-v8": "v8",
         "stable-inference-v9": "v9",
+        "stable-inference-v10": "v10",
     }.get(config.navigation_design, "v1")
     if stable and load_policy(policy_version)[0]["status"] != "FROZEN":
         raise ValueError(

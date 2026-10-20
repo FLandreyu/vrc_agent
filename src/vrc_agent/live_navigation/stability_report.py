@@ -9,8 +9,19 @@ from .stability import load_policy
 from .stability_v2 import protected_rectangles
 from .world import validate_report_confidence
 
-SCHEMAS = {"v1": 2, "v2": 3, "v3": 4, "v4": 5, "v5": 6, "v6": 9, "v7": 10, "v8": 11, "v9": 12}
-WARMUP_VERSIONS = {"v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9"}
+SCHEMAS = {
+    "v1": 2,
+    "v2": 3,
+    "v3": 4,
+    "v4": 5,
+    "v5": 6,
+    "v6": 9,
+    "v7": 10,
+    "v8": 11,
+    "v9": 12,
+    "v10": 13,
+}
+WARMUP_VERSIONS = {"v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10"}
 
 
 def policy_verdict(metrics, policy):
@@ -19,7 +30,10 @@ def policy_verdict(metrics, policy):
         from .stability_v7 import verdict as verdict_v7
 
         return verdict_v7(metrics, policy)
-    if policy.get("version") == "local-rgb-stability-v9-candidate":
+    if policy.get("version") in {
+        "local-rgb-stability-v9-candidate",
+        "local-rgb-stability-v10-candidate",
+    }:
         from .stability_v9 import verdict as verdict_v9
 
         return verdict_v9(metrics, policy)
@@ -130,6 +144,7 @@ def validate_feedback_diagnostics(report):
             if report.get("navigation_design") not in {
                 "stable-inference-v8",
                 "stable-inference-v9",
+                "stable-inference-v10",
             }:
                 raise ValueError("v8 diagnostics require schema11")
             continue  # v8 在独立校验器中从观测/动作重放，不复用旧谓词集合。
@@ -152,9 +167,20 @@ def validate_feedback_diagnostics(report):
 
 
 def validate_stability_report(report):
+    if report.get("navigation_design") != "stable-inference-v10" and any(
+        e.get("event") in {"path_scan_triggered", "path_scan_observed"}
+        or "path_scan" in e.get("audit", {})
+        or "path_scan" in e.get("evidence", {})
+        for e in report.get("events", [])
+    ):
+        raise ValueError("path scan evidence requires schema13")
     target_min_confidence = validate_report_confidence(report)
     validate_feedback_diagnostics(report)
-    if report.get("navigation_design") in {"stable-inference-v8", "stable-inference-v9"}:
+    if report.get("navigation_design") in {
+        "stable-inference-v8",
+        "stable-inference-v9",
+        "stable-inference-v10",
+    }:
         from .acceptance_report_v8 import validate_acceptance
 
         version = report["navigation_design"].rsplit("-", 1)[-1]
@@ -180,29 +206,33 @@ def validate_stability_report(report):
         "stable-inference-v7": "v7",
         "stable-inference-v8": "v8",
         "stable-inference-v9": "v9",
+        "stable-inference-v10": "v10",
     }.get(declared)
     schema = report.get("schema_version")
     if version is None or not (
         schema == SCHEMAS[version] or (version == "v6" and schema in {7, 8})
     ):
         raise ValueError("unknown navigation design")
-    if version in {"v5", "v6", "v7", "v8", "v9"} and type(report.get("schema_version")) is not int:
+    if (
+        version in {"v5", "v6", "v7", "v8", "v9", "v10"}
+        and type(report.get("schema_version")) is not int
+    ):
         raise ValueError("invalid visible schema type")
     policy, digest = load_policy(version)
-    if version != "v9" and any(
+    if version not in {"v9", "v10"} and any(
         "protected_regions" in p or "tolerance_policy" in p
         for key in ("stability_proofs", "stability_prechecks", "warmup_checks")
         for p in report.get(key, [])
     ):
         raise ValueError("v9 evidence requires schema12")
     if any(
-        (version not in {"v7", "v9"} and "changed_runs" in p)
+        (version not in {"v7", "v9", "v10"} and "changed_runs" in p)
         or (version != "v7" and "evidence_regions" in p)
         for key in ("stability_proofs", "stability_prechecks", "warmup_checks")
         for p in report.get(key, [])
     ):
         raise ValueError("v7 evidence requires schema10")
-    if (version == "v6" and schema == 9) or version in {"v7", "v8", "v9"}:
+    if (version == "v6" and schema == 9) or version in {"v7", "v8", "v9", "v10"}:
         from .attempts import validate_attempts
         from .leases import validate_leases
 
@@ -212,7 +242,7 @@ def validate_stability_report(report):
         e.get("event") == "lease_extended" for e in report["events"]
     ):
         raise ValueError("lease report schema required")
-    if (version == "v6" and schema in {8, 9}) or version in {"v7", "v8", "v9"}:
+    if (version == "v6" and schema in {8, 9}) or version in {"v7", "v8", "v9", "v10"}:
         from .timings import validate_timings
 
         validate_timings(report)
@@ -227,14 +257,14 @@ def validate_stability_report(report):
         e.get("event") in {"stage_timing", "stability_precheck"} for e in report["events"]
     ):
         raise ValueError("timing schema required")
-    if version == "v9":
+    if version in {"v9", "v10"}:
         from .acceptance_report_v8 import same
 
         # Python字典相等会把True与1、100.0与100视为相同，v9声明须严格比对。
         same(report.get("stability_policy"), {"digest": digest, **policy})
     if report.get("stability_policy") != {"digest": digest, **policy}:
         raise ValueError("stability policy mismatch")
-    if version in {"v6", "v7", "v8", "v9"}:
+    if version in {"v6", "v7", "v8", "v9", "v10"}:
         policy = validate_run_parameters(
             report.get("run_parameters"), policy, target_min_confidence=target_min_confidence
         )
@@ -254,7 +284,7 @@ def validate_stability_report(report):
             if key in mapping:
                 raise ValueError("duplicate stability observation")
             mapping[key] = event
-    if (version == "v6" and schema in {8, 9}) or version in {"v7", "v8", "v9"}:
+    if (version == "v6" and schema in {8, 9}) or version in {"v7", "v8", "v9", "v10"}:
         for key, source in sources.items():
             if not any(
                 p["reference_observation_id"] == key
@@ -265,11 +295,11 @@ def validate_stability_report(report):
                 raise ValueError("inference source missing accepted precheck")
     if version in WARMUP_VERSIONS:
         validate_warmup(report, sources, policy, digest, version)
-    if version == "v9":
+    if version in {"v9", "v10"}:
         from .stability_v9 import verify_prechecks
 
         verify_prechecks(report, sources, observations, policy)
-    if version in {"v5", "v6", "v7", "v8", "v9"}:
+    if version in {"v5", "v6", "v7", "v8", "v9", "v10"}:
         from .stability_v5 import audit_entities, verify_audit
 
         for source in sources.values():
@@ -309,9 +339,9 @@ def validate_stability_report(report):
                 list(r) for r in protected_rectangles(entities, policy)
             ]:
                 raise ValueError("protected evidence regions mismatch")
-            if version in {"v5", "v6", "v7", "v8", "v9"}:
+            if version in {"v5", "v6", "v7", "v8", "v9", "v10"}:
                 verify_audit(proof, audit_entities(entities, policy))
-        if version in {"v7", "v9"}:
+        if version in {"v7", "v9", "v10"}:
             if version == "v7":
                 from .stability_v7 import verify_regions
             else:
