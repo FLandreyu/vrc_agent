@@ -1597,3 +1597,13 @@ exit 0；完整输出`.runtime/verify/t08_world_v3_plan_v2.log`。附加显式`-
 - 测试更新两个文件：`tests/unit/test_world_v3_confidence.py` 的 `WORLD_DIGEST` 改为冻结后摘要、v3 期望状态改`FROZEN`；`tests/integration/test_world_v3_runtime.py` 把“候选世界拒绝 live”改为“未冻结世界仍在配置/资源前与运行时层拒绝＋冻结后仍需三项同意＋只读计划显示 FROZEN”，报告篡改用例移除`live`/`send`（冻结后声明 live 合法）、保留其余 6 类并新增“未冻结世界报告不得声明 live”。
 - 门禁（冻结后，日志`.runtime/tmp/w3_freeze_pytest.log`、`.runtime/tmp/w3_freeze_plan.log`）：`1458 passed in 290.12s (0:04:50)`；`All checks passed!`；`163 files already formatted`；`No broken requirements found.`；`navigate-live --task G2-1 --world-version v3` 只读计划 exit 0。定向回归 `53 passed in 33.02s`。
 - 边界与后续：冻结不等于实机验收；`configs/navigation-live.toml` 未改（仍 v9 + dry-run），世界版本由命令行参数选择；20 次任务与人工确认未开始。现场预期（第111节 N5）：G2-2 有望通过识别并真正起步（复现中 clearance 8/21），G4-1 即使识别通过仍可能只等待（clearance 0/21）——那属 clearance 输出问题，与本冻结无关。
+## 113. T08 world v3 现场复跑：识别门槛已解，卡点转到 clearance（2026-10-18/20）
+
+- 负责人现场会话；装配为 v9 `FROZEN` `c9fb45ee…e700a2` + world v3 `FROZEN` `1da67714…19f7`（G2/G4 识别门槛 0.7），任务 G2-2 与 G4-1，用户在场、未切窗。报告`.runtime/live/G2-2-v3pilot1`、`.runtime/live/G4-1-v3pilot1`；两次都是试点，不并入 20 次批次。
+- 两次结果一致：`PATH_UNSAFE`，各 ~19.7 s、3 次调用、3 次决策、**0 motion**，成本 `$0.002673` / `$0.002225`；稳定性比较 6/6 stable、0 拒绝；续租 1 次，`task_timeout_ms=180000` 正常。
+- **识别门槛已解决**：两次运行的 `home_raccoon` / `home_vase` 置信度恒为 **0.72**，`target_recognition` 七谓词全真（`failed_predicates=[]`），不再出现 `entity_confident` 失败，也没有 `TARGET_UNOBSERVED`。
+- **卡点转移到 clearance**：三次决策中模型都主动请求 `motion forward 0.4/500ms`，但 `path_safety.forward_clearance=false`（模型在这两个位姿下**不输出** `forward_clearance` 实体），审计因此不许可，派发 `wait`；连续 3 次等待后 `path_waits>=3` → `PATH_UNSAFE` 终止。
+- 对照：G2-1（正对、world v2/v9）时模型稳定给出 `forward_clearance`（5 次调用中 4 次）；第 109 节固定帧统计也显示 G2-2 的 clearance 出现率 38.1%、G4-1 为 0%。因此这是**位姿相关的 clearance 输出缺失**，不是门槛问题，也不是稳定性问题。
+- 判读：world v3 达到设计目的（识别不再挡路，模型愿意请求前进），但“愿意动”与“被允许动”之间现在隔着 clearance。若继续保持“无 clearance 不前进”，这两个位姿在当前模型下会稳定在 `PATH_UNSAFE`。
+- 下一步建议（未执行）：对已保存的 14 张带标签固定帧（`g22_left` / `g41_far`）做**只针对 clearance 的离线 A/B**，检验提高 clearance 输出率的提示措辞，同时必须确认 hazards/uncertainties 不退化（第91/108 节的判定口径）；若提示无效，再讨论其它方案（例如按位姿的 clearance 几何、或更保守的等待策略）。不建议放宽 clearance 几何或允许无 clearance 前进。
+- 附带观察：`path_waits>=3` 即终止，使这两类位姿的现场试跑只有 ~20 s，采集效率低；是否把 `PATH_UNSAFE` 改为“暂停等待人工”属独立议题，需单独提案与复核。
